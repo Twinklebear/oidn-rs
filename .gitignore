@@ -1,0 +1,15 @@
+*.swp
+target
+*.ppm
+*.png
+*.bmp
+*.obj
+*.mtl
+*.binary
+*.jpg
+Cargo.lock
+*.so*
+*.dll
+*.out
+
+

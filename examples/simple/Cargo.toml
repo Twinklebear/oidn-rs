@@ -1,0 +1,10 @@
+[package]
+name = "simple"
+version = "0.1.0"
+authors = ["Will Usher <will@willusher.io>"]
+build = "build.rs"
+
+[dependencies]
+oidn = { path = "../../" }
+image = "0.21.0"
+

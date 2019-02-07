@@ -1,0 +1,8 @@
+[package]
+name = "oidn"
+version = "0.1.0"
+authors = ["Will Usher <will@willusher.io>"]
+edition = "2018"
+
+[dependencies]
+
