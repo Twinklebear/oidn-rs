@@ -10,7 +10,9 @@ fn main() {
         println!("cargo:error=Please set OIDN_DIR=<path to OpenImageDenoise install root>");
         panic!("Failed to find OpenImageDenoise");
     }
+
     println!("cargo:rerun-if-env-changed=OIDN_DIR");
     println!("cargo:rustc-link-lib=OpenImageDenoise");
 }
+
 

@@ -2,9 +2,6 @@ extern crate oidn;
 extern crate image;
 
 use std::env;
-use std::ptr;
-use std::os::raw::{c_char, c_void};
-use std::ffi::{CStr, CString};
 
 /// A simple test application that shows opening a color image and passing
 /// it to OIDN for denoising. The denoised image is then saved out.
@@ -27,38 +24,15 @@ fn main() {
     println!("Image dims {}x{}", input.width(), input.height());
 
     let mut filter_output = vec![0.0f32; input_img.len()];
-    unsafe {
-        let device = oidn::sys::oidnNewDevice(oidn::DeviceType::DEFAULT);
-        oidn::sys::oidnCommitDevice(device);
 
-        let filter_type = CString::new("RT").unwrap();
-        let filter = oidn::sys::oidnNewFilter(device, filter_type.as_ptr());
+    let mut device = oidn::Device::new();
+    let mut filter = oidn::RayTracing::new(&mut device);
+    filter.set_srgb(true)
+        .set_img_dims(input.width() as usize, input.height() as usize);
+    filter.execute(&input_img[..], &mut filter_output[..]);
 
-        let color_buf_name = CString::new("color").unwrap();
-        oidn::sys::oidnSetSharedFilterImage(filter, color_buf_name.as_ptr(),
-                                            input_img.as_mut_ptr() as *mut c_void,
-                                            oidn::Format::FLOAT3, input.width() as usize,
-                                            input.height() as usize, 0, 0, 0);
-
-        let output_buf_name = CString::new("output").unwrap();
-        oidn::sys::oidnSetSharedFilterImage(filter, output_buf_name.as_ptr(),
-                                            filter_output.as_mut_ptr() as *mut c_void,
-                                            oidn::Format::FLOAT3, input.width() as usize,
-                                            input.height() as usize, 0, 0, 0);
-
-        let srgb_name = CString::new("srgb").unwrap();
-        oidn::sys::oidnSetFilter1b(filter, srgb_name.as_ptr(), true);
-        oidn::sys::oidnCommitFilter(filter);
-
-        oidn::sys::oidnExecuteFilter(filter);
-        let mut err_msg = ptr::null();
-        if oidn::sys::oidnGetDeviceError(device, &mut err_msg as *mut *const c_char) != oidn::Error::NONE {
-            let err_str = CStr::from_ptr(err_msg).to_string_lossy();
-            println!("OIDN Error: {}", err_str);
-        }
-
-        oidn::sys::oidnReleaseFilter(filter);
-        oidn::sys::oidnReleaseDevice(device);
+    if let Err(e) = device.get_error() {
+        println!("Error denosing image: {}", e.1);
     }
 
     let mut output_img = vec![0u8; filter_output.len()];
