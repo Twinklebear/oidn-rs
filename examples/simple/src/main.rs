@@ -14,7 +14,7 @@ fn main() {
     let input = image::open(&args[1][..]).expect("Failed to open input image").to_rgb();
 
     // OIDN works on float images only, so convert this to a floating point image
-    let mut input_img = vec![0.0; (3 * input.width() * input.height()) as usize];
+    let mut input_img = vec![0.0f32; (3 * input.width() * input.height()) as usize];
     for y in 0..input.height() {
         for x in 0..input.width() {
             let p = input.get_pixel(x, y);
@@ -26,7 +26,7 @@ fn main() {
 
     println!("Image dims {}x{}", input.width(), input.height());
 
-    let mut filter_output = vec![0.0; input_img.len()];
+    let mut filter_output = vec![0.0f32; input_img.len()];
     unsafe {
         let device = oidn::sys::oidnNewDevice(oidn::DeviceType::DEFAULT);
         oidn::sys::oidnCommitDevice(device);
