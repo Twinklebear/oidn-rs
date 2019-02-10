@@ -16,12 +16,19 @@ before_script:
     - wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
     - tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
     - export OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux/
+    - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$OID_DIR/lib/
     - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
 script:
     - travis-cargo build
     - travis-cargo test
     - travis-cargo doc
-    - for d in `ls examples/`; do cd examples/${d}/; cargo build; cd ../../; done
+    - for d in `ls examples/`; do
+          cd examples/${d}/;
+          pwd;
+          cargo build;
+          if [[ "$?" != "0" ]]; then exit 1; fi;
+          cd ../../;
+      done
 after_success:
     - git config user.name "Travis-CI Doc Bot"
     - git config user.email "willusher.life@gmail.com"

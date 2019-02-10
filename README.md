@@ -5,3 +5,8 @@
 
 Rust bindings to Intel's [OpenImageDenoise library](https://github.com/OpenImageDenoise/oidn).
 
+# Documentation
+
+Rust doc can be found [here](http://www.willusher.io/oidn-rs/oidn),
+OpenImageDenoise documentation can be found [here](https://openimagedenoise.github.io/documentation.html).
+
