@@ -1,27 +1,61 @@
-dist: xenial
 sudo: false
 language: rust
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-rust:
-    - stable
-    - beta
 cache: cargo
 matrix:
-  allow_failures:
-      - rust: nightly
+    allow_failures:
+        - os: windows
+    include:
+        - os: linux
+          dist: xenial
+          rust: stable
+          env:
+              - OIDN_VERSION=0.8.1
+              - secure: WKAbekUDnZF/9s5G8Ct8YvdJeaLz+TC8YDybltcwUo/qICpiLDWL4tnjmzRiyTDI72A5O2ZTkd8xZuVIic47pIGooTa7oNfxNXO2cJH8U3wcqFeMn5vog7W8bIvc7yLf6Kg1GIuVAQvUQqhunTX8Z83YdGqT3zQEjRPRqo0CVy7sDpXKZgNS/Gle7RxYeo7+AAOUJfVJhcqjt4bRynTBfrcCvt8AfCKWN6bllzAthCViBTf0C40FEnAVK/a/0cJLj3KeSrQtKGnAAUxCxkOD83CLnxc2xrfvHqLV3m4of0AxKWA9KTypUe+WAZWUZb1k+aZBKlqrgEDKGZ30+uPpvojZYhE68c2EBMNDcdpIaGPTyA49jofGDZzcFAMC/N8TEdwDn4erkfKxJB8+baPU+NnJEXdgDSPwi0rOZYmT+xDjZmWGoBFfCkRqRMnAdbRewaAg3vbYhzoJUEbaTlYCnywaE1Pa1aQxQkIcI+UOWUk+VsZeTUa5SrmQi2qA94w+tkBVOQ1Oe8C7byFbFAwxT9anobCPJbcCTuYOvY+IoeCTQPeuYA+OrdyaMg704Zj9kOq7ciUQVwljw25WQef/H4jueoK/n8YO6x7LC794cqmVsXa97JIBRSLRwPA8JQ0svYgNe9vvR2Jwcv4b8J5OYZJM27+MAGfKl20olnAf/pA=
+          addons:
+              apt:
+                  sources:
+                      - ubuntu-toolchain-r-test
+        - os: linux
+          dist: xenial
+          rust: beta
+          env: OIDN_VERSION=0.8.1
+          addons:
+              apt:
+                  sources:
+                      - ubuntu-toolchain-r-test
+        - os: osx
+          osx_image: xcode9.4
+          rust: stable
+          env: OIDN_VERSION=0.8.1
+        - os: windows
+          rust: stable
+          env: OIDN_VERSION=0.8.1
 before_script:
-    - wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
-    - tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
-    - export OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux/
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+          export OIDN_TARBALL=oidn-${OIDN_VERSION}.x86_64.linux.tar.gz;
+          export OIDN_DIR=`pwd`/${OIDN_TARBALL%.tar.gz};
+      elif [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+          export OIDN_TARBALL=oidn-${OIDN_VERSION}.x86_64.macos.tar.gz;
+          export OIDN_DIR=`pwd`/${OIDN_TARBALL%.tar.gz};
+      else
+          export OIDN_TARBALL=oidn-${OIDN_VERSION}.x64.vc14.windows.zip;
+          export OIDN_DIR=`pwd`/${OIDN_TARBALL%.zip};
+      fi
+    - wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/${OIDN_TARBALL}
+    - if [[ "$TRAVIS_OS_NAME" != "windows" ]]; then
+          tar -xf $OIDN_TARBALL;
+      else
+          7z x -y $OIDN_TARBALL;
+      fi
     - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$OIDN_DIR/lib/
-    - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+          pip install 'travis-cargo<0.2' --user;
+          export PATH=$HOME/.local/bin:$PATH;
+      fi
 script:
-    - travis-cargo build
-    - travis-cargo test
-    - travis-cargo doc
+    - cargo build
+    - cargo test
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cargo doc; fi
     - for d in `ls examples/`; do
           cd examples/${d}/;
           pwd;
@@ -32,9 +66,5 @@ script:
 after_success:
     - git config user.name "Travis-CI Doc Bot"
     - git config user.email "willusher.life@gmail.com"
-    - travis-cargo --only stable doc-upload
-env:
-  matrix:
-      - OIDN_VERSION=0.8.1
-  global:
-    secure: WKAbekUDnZF/9s5G8Ct8YvdJeaLz+TC8YDybltcwUo/qICpiLDWL4tnjmzRiyTDI72A5O2ZTkd8xZuVIic47pIGooTa7oNfxNXO2cJH8U3wcqFeMn5vog7W8bIvc7yLf6Kg1GIuVAQvUQqhunTX8Z83YdGqT3zQEjRPRqo0CVy7sDpXKZgNS/Gle7RxYeo7+AAOUJfVJhcqjt4bRynTBfrcCvt8AfCKWN6bllzAthCViBTf0C40FEnAVK/a/0cJLj3KeSrQtKGnAAUxCxkOD83CLnxc2xrfvHqLV3m4of0AxKWA9KTypUe+WAZWUZb1k+aZBKlqrgEDKGZ30+uPpvojZYhE68c2EBMNDcdpIaGPTyA49jofGDZzcFAMC/N8TEdwDn4erkfKxJB8+baPU+NnJEXdgDSPwi0rOZYmT+xDjZmWGoBFfCkRqRMnAdbRewaAg3vbYhzoJUEbaTlYCnywaE1Pa1aQxQkIcI+UOWUk+VsZeTUa5SrmQi2qA94w+tkBVOQ1Oe8C7byFbFAwxT9anobCPJbcCTuYOvY+IoeCTQPeuYA+OrdyaMg704Zj9kOq7ciUQVwljw25WQef/H4jueoK/n8YO6x7LC794cqmVsXa97JIBRSLRwPA8JQ0svYgNe9vvR2Jwcv4b8J5OYZJM27+MAGfKl20olnAf/pA=
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then travis-cargo --only stable doc-upload; fi
+
