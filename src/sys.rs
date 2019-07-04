@@ -15,6 +15,7 @@ pub enum OIDNError {
     INVALID_OPERATION = 3,
     OUT_OF_MEMORY = 4,
     UNSUPPORTED_HARDWARE = 5,
+    CANCELLED = 6,
 }
 pub type OIDNErrorFunction = ::std::option::Option<
     unsafe extern "C" fn(
@@ -123,6 +124,9 @@ extern "C" {
 extern "C" {
     pub fn oidnReleaseBuffer(buffer: OIDNBuffer);
 }
+pub type OIDNProgressMonitorFunction = ::std::option::Option<
+    unsafe extern "C" fn(userPtr: *mut ::std::os::raw::c_void, n: f64) -> bool,
+>;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct OIDNFilterImpl {
@@ -182,6 +186,13 @@ extern "C" {
         filter: OIDNFilter,
         name: *const ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
+}
+extern "C" {
+    pub fn oidnSetFilterProgressMonitorFunction(
+        filter: OIDNFilter,
+        func: OIDNProgressMonitorFunction,
+        userPtr: *mut ::std::os::raw::c_void,
+    );
 }
 extern "C" {
     pub fn oidnCommitFilter(filter: OIDNFilter);
