@@ -14,14 +14,14 @@ impl Device {
     pub fn new() -> Device {
         let handle = unsafe { oidnNewDevice(DeviceType::DEFAULT) };
         unsafe { oidnCommitDevice(handle); }
-        Device { handle: handle }
+        Device { handle }
     }
 
     /// Create a device to run denoising on the CPU
     pub fn cpu() -> Device {
         let handle = unsafe { oidnNewDevice(DeviceType::CPU) };
         unsafe { oidnCommitDevice(handle); }
-        Device { handle: handle }
+        Device { handle }
     }
 
     pub fn get_error(&mut self) -> Result<(), (Error, String)> {
@@ -39,6 +39,12 @@ impl Device {
 impl Drop for Device {
     fn drop(&mut self) {
         unsafe { oidnReleaseDevice(self.handle); }
+    }
+}
+
+impl Default for Device {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -1,6 +1,5 @@
 use std::os::raw::c_void;
 use std::ffi::CString;
-use std::mem;
 
 use sys::*;
 use ::Format;
@@ -65,7 +64,7 @@ impl<'a> RayTracing<'a> {
             let buf_name = CString::new("albedo").unwrap();
             unsafe {
                 oidnSetSharedFilterImage(self.handle, buf_name.as_ptr(),
-                                         mem::transmute(albedo.as_ptr()),
+                                         albedo.as_ptr() as *mut c_void,
                                          Format::FLOAT3,
                                          self.img_dims.0, self.img_dims.1,
                                          0, 0, 0);
@@ -75,7 +74,7 @@ impl<'a> RayTracing<'a> {
             let buf_name = CString::new("normal").unwrap();
             unsafe {
                 oidnSetSharedFilterImage(self.handle, buf_name.as_ptr(),
-                                         mem::transmute(normal.as_ptr()),
+                                         normal.as_ptr() as *mut c_void,
                                          Format::FLOAT3,
                                          self.img_dims.0, self.img_dims.1,
                                          0, 0, 0);
@@ -85,7 +84,7 @@ impl<'a> RayTracing<'a> {
         let color_buf_name = CString::new("color").unwrap();
         unsafe {
             oidnSetSharedFilterImage(self.handle, color_buf_name.as_ptr(),
-                                     mem::transmute(color.as_ptr()),
+                                     color.as_ptr() as *mut c_void,
                                      Format::FLOAT3,
                                      self.img_dims.0, self.img_dims.1,
                                      0, 0, 0);

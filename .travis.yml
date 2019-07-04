@@ -52,9 +52,11 @@ before_script:
           pip install 'travis-cargo<0.2' --user;
           export PATH=$HOME/.local/bin:$PATH;
       fi
+    - rustup component add clippy
 script:
     - cargo build
     - cargo test
+    - cargo clippy
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cargo doc; fi
     - for d in `ls examples/`; do
           cd examples/${d}/;
