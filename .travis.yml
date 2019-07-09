@@ -4,21 +4,17 @@ cache: cargo
 matrix:
     allow_failures:
         - os: windows
+        - rust: nightly
     include:
         - os: linux
           dist: xenial
-          rust: stable
+          rust:
+              - stable
+              - beta
+              - nightly
           env:
               - OIDN_VERSION=0.9.0
               - secure: WKAbekUDnZF/9s5G8Ct8YvdJeaLz+TC8YDybltcwUo/qICpiLDWL4tnjmzRiyTDI72A5O2ZTkd8xZuVIic47pIGooTa7oNfxNXO2cJH8U3wcqFeMn5vog7W8bIvc7yLf6Kg1GIuVAQvUQqhunTX8Z83YdGqT3zQEjRPRqo0CVy7sDpXKZgNS/Gle7RxYeo7+AAOUJfVJhcqjt4bRynTBfrcCvt8AfCKWN6bllzAthCViBTf0C40FEnAVK/a/0cJLj3KeSrQtKGnAAUxCxkOD83CLnxc2xrfvHqLV3m4of0AxKWA9KTypUe+WAZWUZb1k+aZBKlqrgEDKGZ30+uPpvojZYhE68c2EBMNDcdpIaGPTyA49jofGDZzcFAMC/N8TEdwDn4erkfKxJB8+baPU+NnJEXdgDSPwi0rOZYmT+xDjZmWGoBFfCkRqRMnAdbRewaAg3vbYhzoJUEbaTlYCnywaE1Pa1aQxQkIcI+UOWUk+VsZeTUa5SrmQi2qA94w+tkBVOQ1Oe8C7byFbFAwxT9anobCPJbcCTuYOvY+IoeCTQPeuYA+OrdyaMg704Zj9kOq7ciUQVwljw25WQef/H4jueoK/n8YO6x7LC794cqmVsXa97JIBRSLRwPA8JQ0svYgNe9vvR2Jwcv4b8J5OYZJM27+MAGfKl20olnAf/pA=
-          addons:
-              apt:
-                  sources:
-                      - ubuntu-toolchain-r-test
-        - os: linux
-          dist: xenial
-          rust: beta
-          env: OIDN_VERSION=0.9.0
           addons:
               apt:
                   sources:
