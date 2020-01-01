@@ -15,7 +15,7 @@ keywords = ["openimagedenoise", "denoise", "denoising"]
 exclude = [
     ".travis.yml",
     "*.png",
-    "*.jpg"
+    "*.jpg",
     ".gitignore",
     "examples/*"
 ]
