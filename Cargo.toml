@@ -13,9 +13,10 @@ A wrapper for the Intel OpenImageDenoise image denoising library.
 """
 keywords = ["openimagedenoise", "denoise", "denoising"]
 exclude = [
-	".travis.yml",
-	"*.png",
-	".gitignore",
-	"examples/*"
+    ".travis.yml",
+    "*.png",
+    "*.jpg"
+    ".gitignore",
+    "examples/*"
 ]
 
