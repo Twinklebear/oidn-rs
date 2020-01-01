@@ -172,6 +172,9 @@ extern "C" {
     pub fn oidnSetFilter1b(filter: OIDNFilter, name: *const ::std::os::raw::c_char, value: bool);
 }
 extern "C" {
+    pub fn oidnGetFilter1b(filter: OIDNFilter, name: *const ::std::os::raw::c_char) -> bool;
+}
+extern "C" {
     pub fn oidnSetFilter1i(
         filter: OIDNFilter,
         name: *const ::std::os::raw::c_char,
@@ -179,13 +182,16 @@ extern "C" {
     );
 }
 extern "C" {
-    pub fn oidnGetFilter1b(filter: OIDNFilter, name: *const ::std::os::raw::c_char) -> bool;
-}
-extern "C" {
     pub fn oidnGetFilter1i(
         filter: OIDNFilter,
         name: *const ::std::os::raw::c_char,
     ) -> ::std::os::raw::c_int;
+}
+extern "C" {
+    pub fn oidnSetFilter1f(filter: OIDNFilter, name: *const ::std::os::raw::c_char, value: f32);
+}
+extern "C" {
+    pub fn oidnGetFilter1f(filter: OIDNFilter, name: *const ::std::os::raw::c_char) -> f32;
 }
 extern "C" {
     pub fn oidnSetFilterProgressMonitorFunction(

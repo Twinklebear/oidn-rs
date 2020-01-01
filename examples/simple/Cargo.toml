@@ -5,5 +5,5 @@ authors = ["Will Usher <will@willusher.io>"]
 
 [dependencies]
 oidn = { path = "../../" }
-image = "0.21"
+image = "0.22"
 
