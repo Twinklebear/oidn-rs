@@ -24,7 +24,7 @@ impl Device {
         Device { handle }
     }
 
-    pub fn get_error(&mut self) -> Result<(), (Error, String)> {
+    pub fn get_error(&self) -> Result<(), (Error, String)> {
         let mut err_msg = ptr::null();
         let err = unsafe { oidnGetDeviceError(self.handle, &mut err_msg as *mut *const c_char) };
         if err == Error::NONE {
@@ -48,5 +48,5 @@ impl Default for Device {
     }
 }
 
-unsafe impl Sync for Device {}
+unsafe impl<'a, 'b> Send for Device {}
 

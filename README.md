@@ -22,14 +22,15 @@ extern crate oidn;
 fn main() {
     // Load scene, render image, etc.
 
-    let input_img: Vec<f32> = // Produced by your renderer
+    let input_img: Vec<f32> = // A float3 RGB image produced by your renderer
     let mut filter_output = vec![0.0f32; input_img.len()];
 
-    let mut device = oidn::Device::new();
-    let mut filter = oidn::RayTracing::new(&mut device);
+    let device = oidn::Device::new();
+    let mut filter = oidn::RayTracing::new(&device);
+    // Optionally add float3 normal and albedo buffers as well
     filter.set_srgb(true)
         .set_img_dims(input.width() as usize, input.height() as usize);
-    filter.execute(&input_img[..], &mut filter_output[..]);
+    filter.execute(&input_img[..], &mut filter_output[..]).expect("Filter config error!");
 
     if let Err(e) = device.get_error() {
         println!("Error denosing image: {}", e.1);

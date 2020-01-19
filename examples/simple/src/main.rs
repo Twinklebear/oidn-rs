@@ -22,14 +22,15 @@ fn main() {
     }
 
     println!("Image dims {}x{}", input.width(), input.height());
+    println!("input len {}", input_img.len());
 
     let mut filter_output = vec![0.0f32; input_img.len()];
 
-    let mut device = oidn::Device::new();
-    let mut filter = oidn::RayTracing::new(&mut device);
+    let device = oidn::Device::new();
+    let mut filter = oidn::RayTracing::new(&device);
     filter.set_srgb(true)
         .set_img_dims(input.width() as usize, input.height() as usize);
-    filter.execute(&input_img[..], &mut filter_output[..]);
+    filter.execute(&input_img[..], &mut filter_output[..]).expect("Invalid input image dimensions?");
 
     if let Err(e) = device.get_error() {
         println!("Error denosing image: {}", e.1);

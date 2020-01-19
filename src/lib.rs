@@ -9,4 +9,5 @@ pub use sys::OIDNDeviceType as DeviceType;
 pub use sys::OIDNError as Error;
 pub use device::Device;
 pub use filter::RayTracing;
+pub use filter::FilterError;
 

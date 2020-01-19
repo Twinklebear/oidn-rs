@@ -5,27 +5,32 @@ use sys::*;
 use ::Format;
 use device::Device;
 
+#[derive(Debug)]
+pub enum FilterError {
+    InvalidImageDimensions
+}
+
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
 /// such as path tracing.
-pub struct RayTracing<'a> {
+pub struct RayTracing<'a, 'b> {
     handle: OIDNFilter,
-    device: OIDNDevice,
+    device: &'a Device,
     hdr: bool,
     srgb: bool,
     img_dims: (usize, usize),
-    albedo: Option<&'a [f32]>,
-    normal: Option<&'a [f32]>,
+    albedo: Option<&'b [f32]>,
+    normal: Option<&'b [f32]>,
 }
 
-impl<'a> RayTracing<'a> {
-    pub fn new(device: &mut Device) -> RayTracing<'a> {
+impl<'a, 'b> RayTracing<'a, 'b> {
+    pub fn new(device: &'a Device) -> RayTracing<'a, 'b> {
         unsafe { oidnRetainDevice(device.handle); }
         let filter_type = CString::new("RT").unwrap();
         let filter = unsafe { oidnNewFilter(device.handle, filter_type.as_ptr()) };
         RayTracing {
             handle: filter,
-            device: device.handle,
+            device: device,
             hdr: false,
             srgb: false,
             img_dims: (0, 0),
@@ -34,33 +39,37 @@ impl<'a> RayTracing<'a> {
         }
     }
 
-    pub fn set_hdr(&mut self, hdr: bool) -> &mut RayTracing<'a> {
+    pub fn set_hdr(&mut self, hdr: bool) -> &mut RayTracing<'a, 'b> {
         self.hdr = hdr;
         self
     }
 
-    pub fn set_srgb(&mut self, srgb: bool) -> &mut RayTracing<'a> {
+    pub fn set_srgb(&mut self, srgb: bool) -> &mut RayTracing<'a, 'b> {
         self.srgb = srgb;
         self
     }
 
-    pub fn set_img_dims(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
+    pub fn set_img_dims(&mut self, width: usize, height: usize) -> &mut RayTracing<'a, 'b> {
         self.img_dims = (width, height);
         self
     }
 
-    pub fn set_albedo(&mut self, albedo: &'a [f32]) -> &mut RayTracing<'a> {
+    pub fn set_albedo(&mut self, albedo: &'b [f32]) -> &mut RayTracing<'a, 'b> {
         self.albedo = Some(albedo);
         self
     }
 
-    pub fn set_normal(&mut self, normal: &'a [f32]) -> &mut RayTracing<'a> {
+    pub fn set_normal(&mut self, normal: &'b [f32]) -> &mut RayTracing<'a, 'b> {
         self.normal = Some(normal);
         self
     }
 
-    pub fn execute(&mut self, color: &[f32], output: &mut [f32]) {
+    pub fn execute(&mut self, color: &[f32], output: &mut [f32]) -> Result<(), FilterError> {
+        let buffer_dims = 3 * self.img_dims.0 * self.img_dims.1;
         if let Some(albedo) = self.albedo {
+            if albedo.len() != buffer_dims {
+                return Err(FilterError::InvalidImageDimensions);
+            }
             let buf_name = CString::new("albedo").unwrap();
             unsafe {
                 oidnSetSharedFilterImage(self.handle, buf_name.as_ptr(),
@@ -71,6 +80,9 @@ impl<'a> RayTracing<'a> {
             }
         }
         if let Some(normal) = self.normal {
+            if normal.len() != buffer_dims {
+                return Err(FilterError::InvalidImageDimensions);
+            }
             let buf_name = CString::new("normal").unwrap();
             unsafe {
                 oidnSetSharedFilterImage(self.handle, buf_name.as_ptr(),
@@ -81,6 +93,9 @@ impl<'a> RayTracing<'a> {
             }
         }
 
+        if color.len() != buffer_dims {
+            return Err(FilterError::InvalidImageDimensions);
+        }
         let color_buf_name = CString::new("color").unwrap();
         unsafe {
             oidnSetSharedFilterImage(self.handle, color_buf_name.as_ptr(),
@@ -90,6 +105,9 @@ impl<'a> RayTracing<'a> {
                                      0, 0, 0);
         }
 
+        if output.len() != buffer_dims {
+            return Err(FilterError::InvalidImageDimensions);
+        }
         let output_buf_name = CString::new("output").unwrap();
         unsafe {
             oidnSetSharedFilterImage(self.handle, output_buf_name.as_ptr(),
@@ -108,17 +126,18 @@ impl<'a> RayTracing<'a> {
             oidnCommitFilter(self.handle);
             oidnExecuteFilter(self.handle);
         }
+        Ok(())
     }
 }
 
-impl<'a> Drop for RayTracing<'a> {
+impl<'a, 'b> Drop for RayTracing<'a, 'b> {
     fn drop(&mut self) {
         unsafe {
             oidnReleaseFilter(self.handle);
-            oidnReleaseDevice(self.device);
+            oidnReleaseDevice(self.device.handle);
         }
     }
 }
 
-unsafe impl<'a> Sync for RayTracing<'a> {}
+unsafe impl<'a, 'b> Send for RayTracing<'a, 'b> {}
 
