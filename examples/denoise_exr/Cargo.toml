@@ -1,0 +1,12 @@
+[package]
+name = "denoise_exr"
+version = "0.1.0"
+authors = ["Will Usher <will@willusher.io>"]
+
+[dependencies]
+oidn = { path = "../../" }
+image = "0.22"
+exr = "0.8"
+docopt = "1.1.0"
+serde = { version = "1", features = ["derive"] }
+
