@@ -10,7 +10,7 @@ matrix:
           dist: xenial
           rust: stable
           env:
-              - OIDN_VERSION=1.1.0
+              - OIDN_VERSION=1.2.0
               - secure: WKAbekUDnZF/9s5G8Ct8YvdJeaLz+TC8YDybltcwUo/qICpiLDWL4tnjmzRiyTDI72A5O2ZTkd8xZuVIic47pIGooTa7oNfxNXO2cJH8U3wcqFeMn5vog7W8bIvc7yLf6Kg1GIuVAQvUQqhunTX8Z83YdGqT3zQEjRPRqo0CVy7sDpXKZgNS/Gle7RxYeo7+AAOUJfVJhcqjt4bRynTBfrcCvt8AfCKWN6bllzAthCViBTf0C40FEnAVK/a/0cJLj3KeSrQtKGnAAUxCxkOD83CLnxc2xrfvHqLV3m4of0AxKWA9KTypUe+WAZWUZb1k+aZBKlqrgEDKGZ30+uPpvojZYhE68c2EBMNDcdpIaGPTyA49jofGDZzcFAMC/N8TEdwDn4erkfKxJB8+baPU+NnJEXdgDSPwi0rOZYmT+xDjZmWGoBFfCkRqRMnAdbRewaAg3vbYhzoJUEbaTlYCnywaE1Pa1aQxQkIcI+UOWUk+VsZeTUa5SrmQi2qA94w+tkBVOQ1Oe8C7byFbFAwxT9anobCPJbcCTuYOvY+IoeCTQPeuYA+OrdyaMg704Zj9kOq7ciUQVwljw25WQef/H4jueoK/n8YO6x7LC794cqmVsXa97JIBRSLRwPA8JQ0svYgNe9vvR2Jwcv4b8J5OYZJM27+MAGfKl20olnAf/pA=
           addons:
               apt:
@@ -19,7 +19,7 @@ matrix:
         - os: linux
           dist: xenial
           rust: beta
-          env: OIDN_VERSION=1.1.0
+          env: OIDN_VERSION=1.2.0
           addons:
               apt:
                   sources:
@@ -27,7 +27,7 @@ matrix:
         - os: linux
           dist: xenial
           rust: nightly
-          env: OIDN_VERSION=1.1.0
+          env: OIDN_VERSION=1.2.0
           addons:
               apt:
                   sources:
@@ -35,10 +35,10 @@ matrix:
         - os: osx
           osx_image: xcode9.4
           rust: stable
-          env: OIDN_VERSION=1.1.0
+          env: OIDN_VERSION=1.2.0
         - os: windows
           rust: stable
-          env: OIDN_VERSION=1.1.0
+          env: OIDN_VERSION=1.2.0
 before_script:
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
           export OIDN_TARBALL=oidn-${OIDN_VERSION}.x86_64.linux.tar.gz;
