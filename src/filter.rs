@@ -56,43 +56,33 @@ impl<'a> RayTracing<'a> {
         self.execute_filter(color, None, None, output)
     }
 
-    pub fn execute_na(
+    pub fn execute_with_albedo(
         &mut self,
         color: &[f32],
-        normal: &[f32],
         albedo: &[f32],
         output: &mut [f32],
     ) -> Result<(), FilterError> {
-        self.execute_filter(color, Some(normal), Some(albedo), output)
+        self.execute_filter(color, Some(albedo), None, output)
+    }
+
+    pub fn execute_with_albedo_normal(
+        &mut self,
+        color: &[f32],
+        albedo: &[f32],
+        normal: &[f32],
+        output: &mut [f32],
+    ) -> Result<(), FilterError> {
+        self.execute_filter(color, Some(albedo), Some(normal), output)
     }
 
     fn execute_filter(
         &mut self,
         color: &[f32],
-        normal: Option<&[f32]>,
         albedo: Option<&[f32]>,
+        normal: Option<&[f32]>,
         output: &mut [f32],
     ) -> Result<(), FilterError> {
         let buffer_dims = 3 * self.img_dims.0 * self.img_dims.1;
-        if let Some(norm) = normal {
-            if norm.len() != buffer_dims {
-                return Err(FilterError::InvalidImageDimensions);
-            }
-            let buf_name = CString::new("normal").unwrap();
-            unsafe {
-                oidnSetSharedFilterImage(
-                    self.handle,
-                    buf_name.as_ptr(),
-                    norm.as_ptr() as *mut c_void,
-                    Format::FLOAT3,
-                    self.img_dims.0,
-                    self.img_dims.1,
-                    0,
-                    0,
-                    0,
-                );
-            }
-        }
         if let Some(alb) = albedo {
             if alb.len() != buffer_dims {
                 return Err(FilterError::InvalidImageDimensions);
@@ -103,6 +93,25 @@ impl<'a> RayTracing<'a> {
                     self.handle,
                     buf_name.as_ptr(),
                     alb.as_ptr() as *mut c_void,
+                    Format::FLOAT3,
+                    self.img_dims.0,
+                    self.img_dims.1,
+                    0,
+                    0,
+                    0,
+                );
+            }
+        }
+        if let Some(norm) = normal {
+            if norm.len() != buffer_dims {
+                return Err(FilterError::InvalidImageDimensions);
+            }
+            let buf_name = CString::new("normal").unwrap();
+            unsafe {
+                oidnSetSharedFilterImage(
+                    self.handle,
+                    buf_name.as_ptr(),
+                    norm.as_ptr() as *mut c_void,
                     Format::FLOAT3,
                     self.img_dims.0,
                     self.img_dims.1,
