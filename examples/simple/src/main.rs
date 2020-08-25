@@ -1,5 +1,5 @@
-extern crate oidn;
 extern crate image;
+extern crate oidn;
 
 use std::env;
 
@@ -8,7 +8,9 @@ use std::env;
 
 fn main() {
     let args: Vec<_> = env::args().collect();
-    let input = image::open(&args[1][..]).expect("Failed to open input image").to_rgb();
+    let input = image::open(&args[1][..])
+        .expect("Failed to open input image")
+        .to_rgb();
 
     // OIDN works on float images only, so convert this to a floating point image
     let mut input_img = vec![0.0f32; (3 * input.width() * input.height()) as usize];
@@ -22,15 +24,17 @@ fn main() {
     }
 
     println!("Image dims {}x{}", input.width(), input.height());
-    println!("input len {}", input_img.len());
 
     let mut filter_output = vec![0.0f32; input_img.len()];
 
     let device = oidn::Device::new();
     let mut filter = oidn::RayTracing::new(&device);
-    filter.set_srgb(true)
+    filter
+        .set_srgb(true)
         .set_img_dims(input.width() as usize, input.height() as usize);
-    filter.execute(&input_img[..], &mut filter_output[..]).expect("Invalid input image dimensions?");
+    filter
+        .execute(&input_img[..], &mut filter_output[..])
+        .expect("Invalid input image dimensions?");
 
     if let Err(e) = device.get_error() {
         println!("Error denosing image: {}", e.1);
@@ -48,7 +52,12 @@ fn main() {
         }
     }
 
-    image::save_buffer(&args[2][..], &output_img[..], input.width(), input.height(), image::RGB(8))
-        .expect("Failed to save output image");
+    image::save_buffer(
+        &args[2][..],
+        &output_img[..],
+        input.width(),
+        input.height(),
+        image::RGB(8),
+    )
+    .expect("Failed to save output image");
 }
-

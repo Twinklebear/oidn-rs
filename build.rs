@@ -13,5 +13,3 @@ fn main() {
     println!("cargo:rerun-if-env-changed=OIDN_DIR");
     println!("cargo:rustc-link-lib=OpenImageDenoise");
 }
-
-

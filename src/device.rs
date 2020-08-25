@@ -1,9 +1,9 @@
-use std::ptr;
 use std::ffi::CStr;
 use std::os::raw::c_char;
+use std::ptr;
 
 use sys::*;
-use ::{DeviceType, Error};
+use {DeviceType, Error};
 
 pub struct Device {
     pub(crate) handle: OIDNDevice,
@@ -13,14 +13,18 @@ impl Device {
     /// Create a device using the fastest device available to run denoising
     pub fn new() -> Device {
         let handle = unsafe { oidnNewDevice(DeviceType::DEFAULT) };
-        unsafe { oidnCommitDevice(handle); }
+        unsafe {
+            oidnCommitDevice(handle);
+        }
         Device { handle }
     }
 
     /// Create a device to run denoising on the CPU
     pub fn cpu() -> Device {
         let handle = unsafe { oidnNewDevice(DeviceType::CPU) };
-        unsafe { oidnCommitDevice(handle); }
+        unsafe {
+            oidnCommitDevice(handle);
+        }
         Device { handle }
     }
 
@@ -38,7 +42,9 @@ impl Device {
 
 impl Drop for Device {
     fn drop(&mut self) {
-        unsafe { oidnReleaseDevice(self.handle); }
+        unsafe {
+            oidnReleaseDevice(self.handle);
+        }
     }
 }
 
@@ -49,4 +55,3 @@ impl Default for Device {
 }
 
 unsafe impl<'a, 'b> Send for Device {}
-
