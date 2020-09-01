@@ -1,6 +1,3 @@
-use std::ffi::CString;
-use std::os::raw::c_void;
-
 use device::Device;
 use sys::*;
 use Format;
@@ -17,6 +14,7 @@ pub struct RayTracing<'a> {
     handle: OIDNFilter,
     device: &'a Device,
     hdr: bool,
+    hdr_scale: f32,
     srgb: bool,
     img_dims: (usize, usize),
 }
@@ -26,12 +24,12 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnRetainDevice(device.handle);
         }
-        let filter_type = CString::new("RT").unwrap();
-        let filter = unsafe { oidnNewFilter(device.handle, filter_type.as_ptr()) };
+        let filter = unsafe { oidnNewFilter(device.handle, &b"RT\0" as *const _ as _) };
         RayTracing {
             handle: filter,
             device: device,
             hdr: false,
+            hdr_scale: std::f32::NAN,
             srgb: false,
             img_dims: (0, 0),
         }
@@ -39,6 +37,11 @@ impl<'a> RayTracing<'a> {
 
     pub fn set_hdr(&mut self, hdr: bool) -> &mut RayTracing<'a> {
         self.hdr = hdr;
+        self
+    }
+
+    pub fn set_hdr_scale(&mut self, hdr_scale: f32) -> &mut RayTracing<'a> {
+        self.hdr_scale = hdr_scale;
         self
     }
 
@@ -83,16 +86,16 @@ impl<'a> RayTracing<'a> {
         output: &mut [f32],
     ) -> Result<(), FilterError> {
         let buffer_dims = 3 * self.img_dims.0 * self.img_dims.1;
+
         if let Some(alb) = albedo {
             if alb.len() != buffer_dims {
                 return Err(FilterError::InvalidImageDimensions);
             }
-            let buf_name = CString::new("albedo").unwrap();
             unsafe {
                 oidnSetSharedFilterImage(
                     self.handle,
-                    buf_name.as_ptr(),
-                    alb.as_ptr() as *mut c_void,
+                    &b"albedo\0" as *const _ as _,
+                    alb.as_ptr() as *mut _,
                     Format::FLOAT3,
                     self.img_dims.0,
                     self.img_dims.1,
@@ -101,36 +104,37 @@ impl<'a> RayTracing<'a> {
                     0,
                 );
             }
-        }
-        if let Some(norm) = normal {
-            if norm.len() != buffer_dims {
-                return Err(FilterError::InvalidImageDimensions);
-            }
-            let buf_name = CString::new("normal").unwrap();
-            unsafe {
-                oidnSetSharedFilterImage(
-                    self.handle,
-                    buf_name.as_ptr(),
-                    norm.as_ptr() as *mut c_void,
-                    Format::FLOAT3,
-                    self.img_dims.0,
-                    self.img_dims.1,
-                    0,
-                    0,
-                    0,
-                );
+
+            // No use supplying normal if albedo was
+            // not also given.
+            if let Some(norm) = normal {
+                if norm.len() != buffer_dims {
+                    return Err(FilterError::InvalidImageDimensions);
+                }
+                unsafe {
+                    oidnSetSharedFilterImage(
+                        self.handle,
+                        &b"normal\0" as *const _ as _,
+                        norm.as_ptr() as *mut _,
+                        Format::FLOAT3,
+                        self.img_dims.0,
+                        self.img_dims.1,
+                        0,
+                        0,
+                        0,
+                    );
+                }
             }
         }
 
         if color.len() != buffer_dims {
             return Err(FilterError::InvalidImageDimensions);
         }
-        let color_buf_name = CString::new("color").unwrap();
         unsafe {
             oidnSetSharedFilterImage(
                 self.handle,
-                color_buf_name.as_ptr(),
-                color.as_ptr() as *mut c_void,
+                &b"color\0" as *const _ as _,
+                color.as_ptr() as *mut _,
                 Format::FLOAT3,
                 self.img_dims.0,
                 self.img_dims.1,
@@ -143,12 +147,11 @@ impl<'a> RayTracing<'a> {
         if output.len() != buffer_dims {
             return Err(FilterError::InvalidImageDimensions);
         }
-        let output_buf_name = CString::new("output").unwrap();
         unsafe {
             oidnSetSharedFilterImage(
                 self.handle,
-                output_buf_name.as_ptr(),
-                output.as_mut_ptr() as *mut c_void,
+                &b"output\0" as *const _ as _,
+                output.as_mut_ptr() as *mut _,
                 Format::FLOAT3,
                 self.img_dims.0,
                 self.img_dims.1,
@@ -158,11 +161,10 @@ impl<'a> RayTracing<'a> {
             );
         }
 
-        let srgb_name = CString::new("srgb").unwrap();
-        let hdr_name = CString::new("hdr").unwrap();
         unsafe {
-            oidnSetFilter1b(self.handle, hdr_name.as_ptr(), self.hdr);
-            oidnSetFilter1b(self.handle, srgb_name.as_ptr(), self.srgb);
+            oidnSetFilter1b(self.handle, &b"hdr\0" as *const _ as _, self.hdr);
+            oidnSetFilter1f(self.handle, &b"hdrScale\0" as *const _ as _, self.hdr_scale);
+            oidnSetFilter1b(self.handle, &b"srgb\0" as *const _ as _, self.srgb);
 
             oidnCommitFilter(self.handle);
             oidnExecuteFilter(self.handle);

@@ -1,6 +1,6 @@
 [package]
 name = "oidn"
-version = "1.2.0"
+version = "1.2.1"
 authors = ["Will Usher <will@willusher.io>"]
 build = "build.rs"
 homepage = "https://github.com/Twinklebear/oidn-rs"
@@ -8,9 +8,7 @@ documentation = "http://www.willusher.io/oidn-rs/oidn/"
 repository = "https://github.com/Twinklebear/oidn-rs"
 readme = "README.md"
 license = "MIT"
-description = """
-A wrapper for the Intel OpenImageDenoise image denoising library.
-"""
+description = "A wrapper for the Intel OpenImageDenoise image denoising library."
 keywords = ["openimagedenoise", "denoise", "denoising"]
 exclude = [
     ".travis.yml",
@@ -19,4 +17,3 @@ exclude = [
     ".gitignore",
     "examples/*"
 ]
-
