@@ -24,7 +24,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnRetainDevice(device.handle);
         }
-        let filter = unsafe { oidnNewFilter(device.handle, &b"RT\0" as *const _ as _) };
+        let filter = unsafe { oidnNewFilter(device.handle, b"RT\0" as *const _ as _) };
         RayTracing {
             handle: filter,
             device: device,
@@ -94,7 +94,7 @@ impl<'a> RayTracing<'a> {
             unsafe {
                 oidnSetSharedFilterImage(
                     self.handle,
-                    &b"albedo\0" as *const _ as _,
+                    b"albedo\0" as *const _ as _,
                     alb.as_ptr() as *mut _,
                     Format::FLOAT3,
                     self.img_dims.0,
@@ -114,7 +114,7 @@ impl<'a> RayTracing<'a> {
                 unsafe {
                     oidnSetSharedFilterImage(
                         self.handle,
-                        &b"normal\0" as *const _ as _,
+                        b"normal\0" as *const _ as _,
                         norm.as_ptr() as *mut _,
                         Format::FLOAT3,
                         self.img_dims.0,
@@ -133,7 +133,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnSetSharedFilterImage(
                 self.handle,
-                &b"color\0" as *const _ as _,
+                b"color\0" as *const _ as _,
                 color.as_ptr() as *mut _,
                 Format::FLOAT3,
                 self.img_dims.0,
@@ -150,7 +150,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnSetSharedFilterImage(
                 self.handle,
-                &b"output\0" as *const _ as _,
+                b"output\0" as *const _ as _,
                 output.as_mut_ptr() as *mut _,
                 Format::FLOAT3,
                 self.img_dims.0,
@@ -162,9 +162,9 @@ impl<'a> RayTracing<'a> {
         }
 
         unsafe {
-            oidnSetFilter1b(self.handle, &b"hdr\0" as *const _ as _, self.hdr);
-            oidnSetFilter1f(self.handle, &b"hdrScale\0" as *const _ as _, self.hdr_scale);
-            oidnSetFilter1b(self.handle, &b"srgb\0" as *const _ as _, self.srgb);
+            oidnSetFilter1b(self.handle, b"hdr\0" as *const _ as _, self.hdr);
+            oidnSetFilter1f(self.handle, b"hdrScale\0" as *const _ as _, self.hdr_scale);
+            oidnSetFilter1b(self.handle, b"srgb\0" as *const _ as _, self.srgb);
 
             oidnCommitFilter(self.handle);
             oidnExecuteFilter(self.handle);
