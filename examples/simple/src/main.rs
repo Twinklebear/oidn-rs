@@ -30,10 +30,10 @@ fn main() {
     let device = oidn::Device::new();
     let mut filter = oidn::RayTracing::new(&device);
     filter
-        .set_srgb(true)
-        .set_img_dims(input.width() as usize, input.height() as usize);
+        .srgb(true)
+        .image_dimensions(input.width() as usize, input.height() as usize);
     filter
-        .execute(&input_img[..], &mut filter_output[..])
+        .filter(&input_img[..], &mut filter_output[..])
         .expect("Invalid input image dimensions?");
 
     if let Err(e) = device.get_error() {

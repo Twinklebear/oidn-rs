@@ -2,10 +2,12 @@ extern crate docopt;
 extern crate exr;
 extern crate image;
 extern crate oidn;
+extern crate rayon;
 extern crate serde;
 
 use docopt::Docopt;
 use exr::prelude::rgba_image as rgb_exr;
+use rayon::prelude::*;
 use serde::Deserialize;
 use std::f32;
 
@@ -106,55 +108,54 @@ fn main() {
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
-    let color = load_exr(&args.flag_c);
-    let mut filter_output = vec![0f32; color.img.len()];
+    let mut color = load_exr(&args.flag_c);
 
     let device = oidn::Device::new();
-    let mut filter = oidn::RayTracing::new(&device);
-    filter
-        .set_srgb(false)
-        .set_hdr(true)
-        .set_img_dims(color.width, color.height);
 
-    if let Some(albedo_exr) = args.flag_a {
-        let albedo = load_exr(&albedo_exr);
+    #[allow(unused_assignments)]
+    let mut albedo = EXRData::new(0, 0);
+    #[allow(unused_assignments)]
+    let mut normal = EXRData::new(0, 0);
 
-        if let Some(normal_exr) = args.flag_n {
-            let normal = load_exr(&normal_exr);
-            filter
-                .execute_with_albedo_normal(
-                    &color.img[..],
-                    &albedo.img[..],
-                    &normal.img[..],
-                    &mut filter_output[..],
-                )
-                .expect("Invalid input image dimensions?");
+    let mut denoiser = oidn::RayTracing::new(&device);
+    denoiser
+        .srgb(false)
+        .hdr(true)
+        .image_dimensions(color.width, color.height);
+
+    if let Some(albedo_exr) = args.flag_a.clone() {
+        albedo = load_exr(&albedo_exr);
+
+        if let Some(normal_exr) = args.flag_n.clone() {
+            normal = load_exr(&normal_exr);
+            denoiser.albedo_normal(&albedo.img[..], &normal.img[..]);
         } else {
-            filter
-                .execute_with_albedo(&color.img[..], &albedo.img[..], &mut filter_output[..])
-                .expect("Invalid input image dimensions?");
+            denoiser.albedo(&albedo.img[..]);
         }
-    } else {
-        filter
-            .execute(&color.img[..], &mut filter_output[..])
-            .expect("Invalid input image dimensions?");
     }
+
+    denoiser
+        .filter_in_place(&mut color.img[..])
+        .expect("Invalid input image dimensions?");
 
     if let Err(e) = device.get_error() {
         println!("Error denosing image: {}", e.1);
     }
 
-    let mut output_img = vec![0u8; filter_output.len()];
-    for i in 0..filter_output.len() {
-        let p = linear_to_srgb(tonemap(filter_output[i] * args.flag_e)) * 255.0;
-        if p < 0.0 {
-            output_img[i] = 0;
-        } else if p > 255.0 {
-            output_img[i] = 255;
-        } else {
-            output_img[i] = p as u8;
-        }
-    }
+    let output_img = (0..color.img.len())
+        .into_par_iter()
+        .map(|i| {
+            let p = linear_to_srgb(tonemap(color.img[i] * args.flag_e));
+            if p < 0.0 {
+                0u8
+            } else if p > 1.0 {
+                255u8
+            } else {
+                (p * 255.0) as u8
+            }
+        })
+        .collect::<Vec<_>>();
+
     image::save_buffer(
         &args.flag_o,
         &output_img[..],
