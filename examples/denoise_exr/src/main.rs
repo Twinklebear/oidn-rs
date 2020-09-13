@@ -112,10 +112,8 @@ fn main() {
 
     let device = oidn::Device::new();
 
-    #[allow(unused_assignments)]
-    let mut albedo = EXRData::new(0, 0);
-    #[allow(unused_assignments)]
-    let mut normal = EXRData::new(0, 0);
+    let albedo: EXRData;
+    let normal: EXRData;
 
     let mut denoiser = oidn::RayTracing::new(&device);
     denoiser

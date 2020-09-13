@@ -29,7 +29,7 @@ fn main() {
     oidn::RayTracing::new(&device)
         // Optionally add float3 normal and albedo buffers as well
         .srgb(true)
-        .set_image_dimensions(input.width() as usize, input.height() as usize);
+        .image_dimensions(input.width() as usize, input.height() as usize);
         .filter(&input_img[..], &mut filter_output[..])
         .expect("Filter config error!");
 

@@ -10,19 +10,19 @@ pub enum FilterError {
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
 /// such as path tracing.
-pub struct RayTracing<'a> {
+pub struct RayTracing<'a, 'b> {
     handle: OIDNFilter,
     device: &'a Device,
-    albedo: Option<&'a [f32]>,
-    normal: Option<&'a [f32]>,
+    albedo: Option<&'b [f32]>,
+    normal: Option<&'b [f32]>,
     hdr: bool,
     hdr_scale: f32,
     srgb: bool,
     img_dims: (usize, usize),
 }
 
-impl<'a> RayTracing<'a> {
-    pub fn new(device: &'a Device) -> RayTracing<'a> {
+impl<'a, 'b> RayTracing<'a, 'b> {
+    pub fn new(device: &'a Device) -> RayTracing<'a, 'b> {
         unsafe {
             oidnRetainDevice(device.handle);
         }
@@ -39,33 +39,37 @@ impl<'a> RayTracing<'a> {
         }
     }
 
-    pub fn albedo_normal(&mut self, albedo: &'a [f32], normal: &'a [f32]) -> &mut RayTracing<'a> {
+    pub fn albedo_normal(
+        &mut self,
+        albedo: &'b [f32],
+        normal: &'b [f32],
+    ) -> &mut RayTracing<'a, 'b> {
         self.albedo = Some(albedo);
         self.normal = Some(normal);
         self
     }
 
-    pub fn albedo(&mut self, albedo: &'a [f32]) -> &mut RayTracing<'a> {
+    pub fn albedo(&mut self, albedo: &'b [f32]) -> &mut RayTracing<'a, 'b> {
         self.albedo = Some(albedo);
         self
     }
 
-    pub fn hdr(&mut self, hdr: bool) -> &mut RayTracing<'a> {
+    pub fn hdr(&mut self, hdr: bool) -> &mut RayTracing<'a, 'b> {
         self.hdr = hdr;
         self
     }
 
-    pub fn hdr_scale(&mut self, hdr_scale: f32) -> &mut RayTracing<'a> {
+    pub fn hdr_scale(&mut self, hdr_scale: f32) -> &mut RayTracing<'a, 'b> {
         self.hdr_scale = hdr_scale;
         self
     }
 
-    pub fn srgb(&mut self, srgb: bool) -> &mut RayTracing<'a> {
+    pub fn srgb(&mut self, srgb: bool) -> &mut RayTracing<'a, 'b> {
         self.srgb = srgb;
         self
     }
 
-    pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
+    pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a, 'b> {
         self.img_dims = (width, height);
         self
     }
@@ -78,11 +82,7 @@ impl<'a> RayTracing<'a> {
         self.execute_filter(None, color)
     }
 
-    fn execute_filter(
-        &self,
-        color: Option<&[f32]>,
-        output: &mut [f32],
-    ) -> Result<(), FilterError> {
+    fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), FilterError> {
         let buffer_dims = 3 * self.img_dims.0 * self.img_dims.1;
 
         if let Some(alb) = self.albedo {
@@ -182,7 +182,7 @@ impl<'a> RayTracing<'a> {
     }
 }
 
-impl<'a> Drop for RayTracing<'a> {
+impl<'a, 'b> Drop for RayTracing<'a, 'b> {
     fn drop(&mut self) {
         unsafe {
             oidnReleaseFilter(self.handle);
@@ -191,4 +191,4 @@ impl<'a> Drop for RayTracing<'a> {
     }
 }
 
-unsafe impl<'a> Send for RayTracing<'a> {}
+unsafe impl<'a, 'b> Send for RayTracing<'a, 'b> {}
