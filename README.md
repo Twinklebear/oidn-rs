@@ -26,11 +26,12 @@ fn main() {
     let mut filter_output = vec![0.0f32; input_img.len()];
 
     let device = oidn::Device::new();
-    let mut filter = oidn::RayTracing::new(&device);
-    // Optionally add float3 normal and albedo buffers as well
-    filter.set_srgb(true)
-        .set_img_dims(input.width() as usize, input.height() as usize);
-    filter.execute(&input_img[..], &mut filter_output[..]).expect("Filter config error!");
+    oidn::RayTracing::new(&device)
+        // Optionally add float3 normal and albedo buffers as well
+        .srgb(true)
+        .image_dimensions(input.width() as usize, input.height() as usize);
+        .filter(&input_img[..], &mut filter_output[..])
+        .expect("Filter config error!");
 
     if let Err(e) = device.get_error() {
         println!("Error denosing image: {}", e.1);
@@ -43,4 +44,3 @@ fn main() {
 The [simple](examples/simple) example loads a JPG, denoises it, and saves the output image to a JPG.
 The [denoise_exr](examples/denoise_exr) example loads an HDR color EXR file, denoises it and saves the tonemapped
 result out to a JPG. `denoise_exr` can also take albedo and normal data through additional EXR files.
-
