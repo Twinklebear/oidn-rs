@@ -15,5 +15,6 @@ exclude = [
     "*.png",
     "*.jpg",
     ".gitignore",
-    "examples/*"
+    "examples/*",
+    "scripts/*"
 ]

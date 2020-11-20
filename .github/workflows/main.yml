@@ -1,0 +1,49 @@
+name: CI
+on: [push, pull_request]
+env:
+    CARGO_TERM_COLOR: always
+    OIDN_VERSION: 1.2.4
+jobs:
+    build_linux:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
+            - run: tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
+            - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
+            - run: echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
+            - run: cargo build
+            - run: cargo test
+            - run: cargo doc
+            - run: scripts/build-examples-linux-mac.sh
+    build_mac:
+        runs-on: macos-latest
+        steps:
+            - uses: actions/checkout@v2
+            - uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+
+            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x86_64.macos.tar.gz
+            - run: tar -xf oidn-${OIDN_VERSION}.x86_64.macos.tar.gz
+            - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.macos" >> $GITHUB_ENV
+            - run: echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
+            - run: cp $OIDN_DIR/lib/*dylib .
+            - run: ls
+            - run: cargo build
+            - run: scripts/build-test-mac.sh
+    build_windows:
+        runs-on: windows-latest
+        steps:
+            - uses: actions/checkout@v2
+            - uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+            - run: choco install wget
+            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.vc14.windows.zip
+            - run: 7z x oidn-${env:OIDN_VERSION}.x64.vc14.windows.zip -y
+            - run: scripts/build-test-windows.ps1
+
