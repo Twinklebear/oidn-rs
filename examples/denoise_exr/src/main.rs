@@ -140,10 +140,11 @@ fn main() {
         println!("Error denosing image: {}", e.1);
     }
 
+    let exposure = 2.0_f32.powf(args.flag_e);
     let output_img = (0..color.img.len())
         .into_par_iter()
         .map(|i| {
-            let p = linear_to_srgb(tonemap(color.img[i] * args.flag_e));
+            let p = linear_to_srgb(tonemap(color.img[i] * exposure));
             if p < 0.0 {
                 0u8
             } else if p > 1.0 {
