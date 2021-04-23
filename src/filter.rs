@@ -16,7 +16,7 @@ pub struct RayTracing<'a, 'b> {
     albedo: Option<&'b [f32]>,
     normal: Option<&'b [f32]>,
     hdr: bool,
-    hdr_scale: f32,
+    input_scale: f32,
     srgb: bool,
     img_dims: (usize, usize),
 }
@@ -33,7 +33,7 @@ impl<'a, 'b> RayTracing<'a, 'b> {
             albedo: None,
             normal: None,
             hdr: false,
-            hdr_scale: std::f32::NAN,
+            input_scale: std::f32::NAN,
             srgb: false,
             img_dims: (0, 0),
         }
@@ -59,8 +59,14 @@ impl<'a, 'b> RayTracing<'a, 'b> {
         self
     }
 
+    #[deprecated(since = "1.3.1", note = "Please use RayTracing::input_scale instead")]
     pub fn hdr_scale(&mut self, hdr_scale: f32) -> &mut RayTracing<'a, 'b> {
-        self.hdr_scale = hdr_scale;
+        self.input_scale = hdr_scale;
+        self
+    }
+
+    pub fn input_scale(&mut self, input_scale: f32) -> &mut RayTracing<'a, 'b> {
+        self.input_scale = input_scale;
         self
     }
 
@@ -172,7 +178,11 @@ impl<'a, 'b> RayTracing<'a, 'b> {
 
         unsafe {
             oidnSetFilter1b(self.handle, b"hdr\0" as *const _ as _, self.hdr);
-            oidnSetFilter1f(self.handle, b"hdrScale\0" as *const _ as _, self.hdr_scale);
+            oidnSetFilter1f(
+                self.handle,
+                b"inputScale\0" as *const _ as _,
+                self.input_scale,
+            );
             oidnSetFilter1b(self.handle, b"srgb\0" as *const _ as _, self.srgb);
 
             oidnCommitFilter(self.handle);
