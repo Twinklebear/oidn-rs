@@ -3,6 +3,11 @@ use std::{convert::TryInto, ffi::CStr, os::raw::c_char, ptr};
 use crate::sys::*;
 use crate::Error;
 
+/// An Open Image Denoise device (e.g. a CPU).
+///
+/// Open Image Denoise supports a device concept, which allows different
+/// components of the application to use the API without interfering with each
+/// other.
 pub struct Device(pub(crate) OIDNDevice);
 
 impl Device {

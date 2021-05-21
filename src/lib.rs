@@ -1,24 +1,24 @@
 //! Rust bindings to Intel's
-//! [OpenImageDenoise](https://github.com/OpenImageDenoise/oidn).
+//! [Open Image Denoise](https://github.com/OpenImageDenoise/oidn).
 //!
-//! OpenImageDenoise documentation can be found
+//! Open Image Denoise documentation can be found
 //! [here](https://openimagedenoise.github.io/documentation.html).
 //!
 //! ## Example
 //!
-//! The crate provides a lightweight wrapper over the OpenImageDenoise library,
-//! along with raw C bindings exposed under [`oidn::sys`](sys). Below is an
-//! example of using the the [`RayTracing`] filter to denoise an image.
+//! The crate provides a lightweight wrapper over the Open Image Denoise
+//! library, along with raw C bindings exposed under [`oidn::sys`](sys). Below
+//! is an example of using the the [`RayTracing`] filter to denoise an image.
 //!
 //! ```ignore
 //! // Load scene, render image, etc.
 //!
-//! let input_img: Vec<f32> = // A float3 RGB image produced by your renderer
+//! let input_img: Vec<f32> = // A float3 RGB image produced by your renderer.
 //! let mut filter_output = vec![0.0f32; input_img.len()];
 //!
 //! let device = oidn::Device::new();
 //! oidn::RayTracing::new(&device)
-//!     // Optionally add float3 normal and albedo buffers as well
+//!     // Optionally add float3 normal and albedo buffers as well.
 //!     .srgb(true)
 //!     .image_dimensions(input.width() as usize, input.height() as usize);
 //!     .filter(&input_img[..], &mut filter_output[..])
@@ -28,7 +28,7 @@
 //!     println!("Error denosing image: {}", e.1);
 //! }
 //!
-//! // Save out or display filter_output image
+//! // Save out or display filter_output image.
 //! ```
 
 use num_enum::TryFromPrimitive;
@@ -38,7 +38,9 @@ pub mod filter;
 #[allow(non_upper_case_globals, non_camel_case_types, non_snake_case)]
 pub mod sys;
 
+#[doc(inline)]
 pub use device::Device;
+#[doc(inline)]
 pub use filter::RayTracing;
 
 #[repr(u32)]
