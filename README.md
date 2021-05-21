@@ -1,20 +1,22 @@
-# oidn-rs
+# `oidn`
 
 [![Crates.io](https://img.shields.io/crates/v/oidn.svg)](https://crates.io/crates/oidn)
 [![Build Status](https://travis-ci.org/Twinklebear/oidn-rs.svg?branch=master)](https://travis-ci.org/Twinklebear/oidn-rs)
 
-Rust bindings to Intel's [OpenImageDenoise library](https://github.com/OpenImageDenoise/oidn).
+Rust bindings to Intel’s [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
 
-# Documentation
+## Documentation
 
-Rust doc can be found [here](http://www.willusher.io/oidn-rs/oidn),
-OpenImageDenoise documentation can be found [here](https://openimagedenoise.github.io/documentation.html).
+Rust docs can be found [here](https://docs.rs/oidn).
+
+Open Image Denoise documentation can be found [here](https://openimagedenoise.github.io/documentation.html).
 
 ## Example
 
-oidn-rs provides a lightweight wrapper over the OpenImageDenoise library, along
-with raw C bindings exposed under `oidn::sys`. Below is an example of using the
-`RT` filter from OpenImageDenoise (the `RayTracing` filter) to denoise an image.
+The crate provides a lightweight wrapper over the Open Image Denoise library,
+along with raw C bindings exposed under `oidn::sys`. Below is an example of
+using the `RT` filter from Open Image Denoise (the `RayTracing` filter) to
+denoise an image.
 
 ```rust
 extern crate oidn;
@@ -41,6 +43,8 @@ fn main() {
 }
 ```
 
-The [simple](examples/simple) example loads a JPG, denoises it, and saves the output image to a JPG.
-The [denoise_exr](examples/denoise_exr) example loads an HDR color EXR file, denoises it and saves the tonemapped
-result out to a JPG. `denoise_exr` can also take albedo and normal data through additional EXR files.
+The [simple](examples/simple) example loads a JPG, denoises it, and saves the
+output image to a JPG. The [denoise_exr](examples/denoise_exr) example loads an
+HDR color EXR file, denoises it and saves the tonemapped result out to a JPG.
+The `denoise_exr` app can also take albedo and normal data through additional
+EXR files.

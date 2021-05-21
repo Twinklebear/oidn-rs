@@ -1,10 +1,11 @@
 [package]
 name = "oidn"
-version = "1.3.1"
+version = "1.4.0"
+edition = "2018"
 authors = ["Will Usher <will@willusher.io>"]
 build = "build.rs"
 homepage = "https://github.com/Twinklebear/oidn-rs"
-documentation = "http://www.willusher.io/oidn-rs/oidn/"
+documentation = "https://docs.rs/oidn"
 repository = "https://github.com/Twinklebear/oidn-rs"
 readme = "README.md"
 license = "MIT"
@@ -18,3 +19,6 @@ exclude = [
     "examples/*",
     "scripts/*"
 ]
+
+[dependencies]
+num_enum = "0.5.1"
