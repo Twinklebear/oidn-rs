@@ -1,11 +1,11 @@
-# oidn-rs
+# `oidn`
 
 [![Crates.io](https://img.shields.io/crates/v/oidn.svg)](https://crates.io/crates/oidn)
 [![Build Status](https://travis-ci.org/Twinklebear/oidn-rs.svg?branch=master)](https://travis-ci.org/Twinklebear/oidn-rs)
 
-Rust bindings to Intel's [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
+Rust bindings to Intel’s [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
 
-# Documentation
+## Documentation
 
 Rust doc can be found [here](http://www.willusher.io/oidn-rs/oidn).
 
