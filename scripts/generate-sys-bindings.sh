@@ -6,17 +6,6 @@
 bindgen $1 -o $2 \
 	--no-doc-comments \
 	--distrust-clang-mangling \
-	--whitelist-function "oidn.*" \
-	--whitelist-type "OIDN.*" \
-	--rustified-enum "OIDNDeviceType" \
-	--rustified-enum "OIDNError" \
-	--rustified-enum "OIDNFormat" \
-	--rustified-enum "OIDNAccess" \
+	--allowlist-function "oidn.*" \
+	--allowlist-type "OIDN.*" \
 	--rust-target nightly
-
-# Run some sed to polish up the enums
-sed -i "s/OIDN_DEVICE_TYPE_//g" $2
-sed -i "s/OIDN_ERROR_//g" $2
-sed -i "s/OIDN_FORMAT_//g" $2
-sed -i "s/OIDN_ACCESS_//g" $2
-

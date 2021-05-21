@@ -1,12 +1,55 @@
+//! Rust bindings to Intel's
+//! [OpenImageDenoise](https://github.com/OpenImageDenoise/oidn).
+//!
+//! OpenImageDenoise documentation can be found
+//! [here](https://openimagedenoise.github.io/documentation.html).
+//!
+//! ## Example
+//!
+//! The crate provides a lightweight wrapper over the OpenImageDenoise library,
+//! along with raw C bindings exposed under [`oidn::sys`](sys). Below is an
+//! example of using the the [`RayTracing`] filter to denoise an image.
+//!
+//! ```ignore
+//! // Load scene, render image, etc.
+//!
+//! let input_img: Vec<f32> = // A float3 RGB image produced by your renderer
+//! let mut filter_output = vec![0.0f32; input_img.len()];
+//!
+//! let device = oidn::Device::new();
+//! oidn::RayTracing::new(&device)
+//!     // Optionally add float3 normal and albedo buffers as well
+//!     .srgb(true)
+//!     .image_dimensions(input.width() as usize, input.height() as usize);
+//!     .filter(&input_img[..], &mut filter_output[..])
+//!     .expect("Filter config error!");
+//!
+//! if let Err(e) = device.get_error() {
+//!     println!("Error denosing image: {}", e.1);
+//! }
+//!
+//! // Save out or display filter_output image
+//! ```
+
+use num_enum::TryFromPrimitive;
+
 pub mod device;
 pub mod filter;
 #[allow(non_upper_case_globals, non_camel_case_types, non_snake_case)]
 pub mod sys;
 
 pub use device::Device;
-pub use filter::FilterError;
 pub use filter::RayTracing;
-pub use sys::OIDNAccess as Access;
-pub use sys::OIDNDeviceType as DeviceType;
-pub use sys::OIDNError as Error;
-pub use sys::OIDNFormat as Format;
+
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
+pub enum Error {
+    None = sys::OIDNError_OIDN_ERROR_NONE,
+    Unknown = sys::OIDNError_OIDN_ERROR_UNKNOWN,
+    InvalidArgument = sys::OIDNError_OIDN_ERROR_INVALID_ARGUMENT,
+    InvalidOperation = sys::OIDNError_OIDN_ERROR_INVALID_OPERATION,
+    OutOfMemory = sys::OIDNError_OIDN_ERROR_OUT_OF_MEMORY,
+    UnsupportedFormat = sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE,
+    Canceled = sys::OIDNError_OIDN_ERROR_CANCELLED,
+    InvalidImageDimensions,
+}
