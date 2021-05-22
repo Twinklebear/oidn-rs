@@ -1,4 +1,4 @@
-use crate::{device::Device, sys::*, Error};
+use crate::{device::Device, sys::*, FilterError};
 
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
@@ -106,20 +106,20 @@ impl<'a, 'b> RayTracing<'a, 'b> {
         self
     }
 
-    pub fn filter(&self, color: &[f32], output: &mut [f32]) -> Result<(), Error> {
+    pub fn filter(&self, color: &[f32], output: &mut [f32]) -> Result<(), FilterError> {
         self.execute_filter(Some(color), output)
     }
 
-    pub fn filter_in_place(&self, color: &mut [f32]) -> Result<(), Error> {
+    pub fn filter_in_place(&self, color: &mut [f32]) -> Result<(), FilterError> {
         self.execute_filter(None, color)
     }
 
-    fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), Error> {
+    fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), FilterError> {
         let buffer_dims = 3 * self.img_dims.0 * self.img_dims.1;
 
         if let Some(alb) = self.albedo {
             if alb.len() != buffer_dims {
-                return Err(Error::InvalidImageDimensions);
+                return Err(FilterError::InvalidImageDimensions);
             }
             unsafe {
                 oidnSetSharedFilterImage(
@@ -139,7 +139,7 @@ impl<'a, 'b> RayTracing<'a, 'b> {
             // not also given.
             if let Some(norm) = self.normal {
                 if norm.len() != buffer_dims {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(FilterError::InvalidImageDimensions);
                 }
                 unsafe {
                     oidnSetSharedFilterImage(
@@ -160,13 +160,13 @@ impl<'a, 'b> RayTracing<'a, 'b> {
         let color_ptr = match color {
             Some(color) => {
                 if color.len() != buffer_dims {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(FilterError::InvalidImageDimensions);
                 }
                 color.as_ptr()
             }
             None => {
                 if output.len() != buffer_dims {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(FilterError::InvalidImageDimensions);
                 }
                 output.as_ptr()
             }
@@ -186,7 +186,7 @@ impl<'a, 'b> RayTracing<'a, 'b> {
         }
 
         if output.len() != buffer_dims {
-            return Err(Error::InvalidImageDimensions);
+            return Err(FilterError::InvalidImageDimensions);
         }
         unsafe {
             oidnSetSharedFilterImage(

@@ -1,7 +1,7 @@
 use std::{convert::TryInto, ffi::CStr, os::raw::c_char, ptr};
 
 use crate::sys::*;
-use crate::Error;
+use crate::FilterError;
 
 /// An Open Image Denoise device (e.g. a CPU).
 ///
@@ -29,7 +29,7 @@ impl Device {
         Self(handle)
     }
 
-    pub fn get_error(&self) -> Result<(), (Error, String)> {
+    pub fn get_error(&self) -> Result<(), (FilterError, String)> {
         let mut err_msg = ptr::null();
         let err = unsafe { oidnGetDeviceError(self.0, &mut err_msg as *mut *const c_char) };
         if OIDNError_OIDN_ERROR_NONE == err {

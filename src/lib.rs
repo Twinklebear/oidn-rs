@@ -43,9 +43,10 @@ pub use device::Device;
 #[doc(inline)]
 pub use filter::RayTracing;
 
+// TODO: Rename later to just Error in a 2.0 release
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
-pub enum Error {
+pub enum FilterError {
     None = sys::OIDNError_OIDN_ERROR_NONE,
     Unknown = sys::OIDNError_OIDN_ERROR_UNKNOWN,
     InvalidArgument = sys::OIDNError_OIDN_ERROR_INVALID_ARGUMENT,
