@@ -11,5 +11,4 @@ Cargo.lock
 *.so*
 *.dll
 *.out
-
-
+.vscode/
