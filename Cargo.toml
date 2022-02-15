@@ -19,6 +19,7 @@ exclude = [
     "examples/*",
     "scripts/*"
 ]
+links = "OpenImageDenoise"
 
 [dependencies]
 num_enum = "0.5.1"
