@@ -55,4 +55,4 @@ impl Default for Device {
     }
 }
 
-unsafe impl<'a, 'b> Send for Device {}
+unsafe impl Send for Device {}

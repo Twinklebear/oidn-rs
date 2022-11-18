@@ -15,7 +15,7 @@ use std::f32;
 /// additional normal and albedo EXR images and denoising it with OIDN.
 /// The denoised image is then tonemaped and saved out as a JPG
 
-const USAGE: &'static str = "
+const USAGE: &str = "
 denoise_exr
 
 Usage:
@@ -73,8 +73,8 @@ impl EXRData {
     fn new(width: usize, height: usize) -> EXRData {
         EXRData {
             img: vec![0f32; width * height * 3],
-            width: width,
-            height: height,
+            width,
+            height,
         }
     }
 

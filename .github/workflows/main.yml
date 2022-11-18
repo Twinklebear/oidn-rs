@@ -1,8 +1,12 @@
 name: CI
-on: [push, pull_request]
+on:
+    push:
+    pull_request:
+    schedule:
+        - cron: "0 0 * * 1"
 env:
     CARGO_TERM_COLOR: always
-    OIDN_VERSION: 1.2.4
+    OIDN_VERSION: 1.4.3
 jobs:
     build_linux:
         runs-on: ubuntu-latest
@@ -15,10 +19,14 @@ jobs:
             - run: tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
             - run: echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
-            - run: cargo build
-            - run: cargo test
-            - run: cargo doc
-            - run: scripts/build-examples-linux-mac.sh
+            - run: cargo build --all --all-targets
+            - run: cargo clippy --all --all-targets -- -D warnings
+            - run: cargo test --all
+            - run: cargo doc --all --no-deps --document-private-items
+              env:
+                  RUSTDOCFLAGS: -Dwarnings
+            - name: Format Core
+              run: cargo fmt -- --check 
     build_mac:
         runs-on: macos-latest
         steps:
@@ -32,9 +40,8 @@ jobs:
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.macos" >> $GITHUB_ENV
             - run: echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
             - run: cp $OIDN_DIR/lib/*dylib .
-            - run: ls
-            - run: cargo build
-            - run: scripts/build-test-mac.sh
+            - run: cargo build --all --all-targets
+            - run: cargo clippy --all --all-targets -- -D warnings
     build_windows:
         runs-on: windows-latest
         steps:
@@ -45,5 +52,10 @@ jobs:
             - run: choco install wget
             - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.vc14.windows.zip
             - run: 7z x oidn-${env:OIDN_VERSION}.x64.vc14.windows.zip -y
-            - run: scripts/build-test-windows.ps1
+            - run: |
+                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.vc14.windows/"
+                cargo build --all --all-targets
+            - run: |
+                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.vc14.windows/"
+                cargo clippy --all --all-targets -- -D warnings
 
