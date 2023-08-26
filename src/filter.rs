@@ -79,12 +79,20 @@ impl<'a> RayTracing<'a> {
     /// Set an input auxiliary image containing the albedo per pixel (three
     /// channels, values in `[0, 1]`).
     pub fn albedo(&mut self, albedo: &[f32]) -> &mut RayTracing<'a> {
-        unsafe {
-            oidnRetainDevice(self.device.0);
+        match self.albedo {
+            None => {
+                unsafe {
+                    oidnRetainDevice(self.device.0);
+                }
+                let albedo_buffer = unsafe { oidnNewBuffer(self.device.0, albedo.len() * 4) };
+                unsafe { oidnWriteBuffer(albedo_buffer, 0, albedo.len() * 4, albedo.as_ptr() as *const _) }
+                self.albedo = Some((albedo_buffer, albedo.len()));
+            }
+            Some((buffer, _)) => {
+                unsafe { oidnWriteBuffer(buffer, 0, albedo.len() * 4, albedo.as_ptr() as *const _) }
+                self.albedo = Some((buffer, albedo.len()));
+            }
         }
-        let albedo_buffer = unsafe { oidnNewBuffer(self.device.0, albedo.len() * 4) };
-        unsafe { oidnWriteBuffer(albedo_buffer, 0, albedo.len() * 4, albedo.as_ptr() as *const _) }
-        self.albedo = Some((albedo_buffer, albedo.len()));
         self
     }
 

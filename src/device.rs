@@ -40,6 +40,28 @@ impl Device {
         Some(Self(handle))
     }
 
+    pub fn sycl() -> Option<Self> {
+        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_SYCL) };
+        if handle.is_null() {
+            return None
+        }
+        unsafe {
+            oidnCommitDevice(handle);
+        }
+        Some(Self(handle))
+    }
+
+    pub fn hip() -> Option<Self> {
+        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_HIP) };
+        if handle.is_null() {
+            return None
+        }
+        unsafe {
+            oidnCommitDevice(handle);
+        }
+        Some(Self(handle))
+    }
+
     pub fn get_error(&self) -> Result<(), (Error, String)> {
         let mut err_msg = ptr::null();
         let err = unsafe { oidnGetDeviceError(self.0, &mut err_msg as *mut *const c_char) };
