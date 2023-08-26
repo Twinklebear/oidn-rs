@@ -45,18 +45,34 @@ impl<'a> RayTracing<'a> {
         albedo: &[f32],
         normal: &[f32],
     ) -> &mut RayTracing<'a> {
-        unsafe {
-            oidnRetainDevice(self.device.0);
+        match self.albedo {
+            None => {
+                unsafe {
+                    oidnRetainDevice(self.device.0);
+                }
+                let albedo_buffer = unsafe { oidnNewBuffer(self.device.0, albedo.len() * 4) };
+                unsafe { oidnWriteBuffer(albedo_buffer, 0, albedo.len() * 4, albedo.as_ptr() as *const _) }
+                self.albedo = Some((albedo_buffer, albedo.len()));
+            }
+            Some((buffer, _)) => {
+                unsafe { oidnWriteBuffer(buffer, 0, albedo.len() * 4, albedo.as_ptr() as *const _) }
+                self.albedo = Some((buffer, albedo.len()));
+            }
         }
-        let albedo_buffer = unsafe { oidnNewBuffer(self.device.0, albedo.len() * 4) };
-        unsafe { oidnWriteBuffer(albedo_buffer, 0, albedo.len() * 4, albedo.as_ptr() as *const _) }
-        self.albedo = Some((albedo_buffer, albedo.len()));
-        unsafe {
-            oidnRetainDevice(self.device.0);
+        match self.normal {
+            None => {
+                unsafe {
+                    oidnRetainDevice(self.device.0);
+                }
+                let normal_buffer = unsafe { oidnNewBuffer(self.device.0, normal.len() * 4) };
+                unsafe { oidnWriteBuffer(normal_buffer, 0, normal.len() * 4, normal.as_ptr() as *const _) }
+                self.normal = Some((normal_buffer, normal.len()));
+            }
+            Some((buffer, _)) => {
+                unsafe { oidnWriteBuffer(buffer, 0, normal.len() * 4, normal.as_ptr() as *const _) }
+                self.normal = Some((buffer, normal.len()));
+            }
         }
-        let normal_buffer = unsafe { oidnNewBuffer(self.device.0, normal.len() * 4) };
-        unsafe { oidnWriteBuffer(normal_buffer, 0, normal.len() * 4, normal.as_ptr() as *const _) }
-        self.normal = Some((normal_buffer, normal.len()));
         self
     }
 
@@ -225,7 +241,6 @@ impl<'a> RayTracing<'a> {
                 0,
             );
         }
-
         unsafe {
             oidnSetFilterBool(self.handle, b"hdr\0" as *const _ as _, self.hdr);
             oidnSetFilterFloat(
@@ -238,7 +253,7 @@ impl<'a> RayTracing<'a> {
 
             oidnCommitFilter(self.handle);
             oidnExecuteFilter(self.handle);
-            std::ptr::copy(oidnGetBufferData(output_buffer) as *const f32, output.as_mut_ptr(), output.len());
+            std::ptr::copy(oidnGetBufferData(output_buffer) as *const f32, output.as_mut_ptr(), output.to_vec().capacity());
             oidnReleaseBuffer(output_buffer);
             oidnReleaseBuffer(color_buffer);
         }
