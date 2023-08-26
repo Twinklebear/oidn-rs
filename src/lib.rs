@@ -43,16 +43,15 @@ pub use device::Device;
 #[doc(inline)]
 pub use filter::RayTracing;
 
-// TODO: Rename later to just Error in a 2.0 release
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
-pub enum FilterError {
-    None = sys::OIDNError_OIDN_ERROR_NONE,
-    Unknown = sys::OIDNError_OIDN_ERROR_UNKNOWN,
-    InvalidArgument = sys::OIDNError_OIDN_ERROR_INVALID_ARGUMENT,
-    InvalidOperation = sys::OIDNError_OIDN_ERROR_INVALID_OPERATION,
-    OutOfMemory = sys::OIDNError_OIDN_ERROR_OUT_OF_MEMORY,
-    UnsupportedFormat = sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE,
-    Canceled = sys::OIDNError_OIDN_ERROR_CANCELLED,
+pub enum Error {
+    None = sys::OIDNError_OIDN_ERROR_NONE as u32,
+    Unknown = sys::OIDNError_OIDN_ERROR_UNKNOWN as u32,
+    InvalidArgument = sys::OIDNError_OIDN_ERROR_INVALID_ARGUMENT as u32,
+    InvalidOperation = sys::OIDNError_OIDN_ERROR_INVALID_OPERATION as u32,
+    OutOfMemory = sys::OIDNError_OIDN_ERROR_OUT_OF_MEMORY as u32,
+    UnsupportedFormat = sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE as u32,
+    Canceled = sys::OIDNError_OIDN_ERROR_CANCELLED as u32,
     InvalidImageDimensions,
 }
