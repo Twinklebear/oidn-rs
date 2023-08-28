@@ -141,6 +141,25 @@ impl<'a> RayTracing<'a> {
     }
 
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
+        let buffer_dims = 3 * width * height;
+        match self.albedo {
+            None => {}
+            Some(buffer) => unsafe {
+                if buffer.1 != buffer_dims {
+                    oidnReleaseBuffer(buffer.0);
+                    self.albedo = None;
+                }
+            }
+        }
+        match self.normal {
+            None => {}
+            Some(buffer) => unsafe {
+                if buffer.1 != buffer_dims {
+                    oidnReleaseBuffer(buffer.0);
+                    self.normal = None;
+                }
+            }
+        }
         self.img_dims = (width, height);
         self
     }
@@ -212,7 +231,9 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnRetainDevice(self.device.0);
         }
-        let color_buffer = unsafe { oidnNewBuffer(self.device.0, len * 4) };
+        let color_buffer = unsafe {
+            oidnNewBuffer(self.device.0, len * 4)
+        };
         unsafe { oidnWriteBuffer(color_buffer, 0, len * 4, color_ptr as *const _) }
         unsafe {
             oidnSetFilterImage(
@@ -234,7 +255,9 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnRetainDevice(self.device.0);
         }
-        let output_buffer = unsafe { oidnNewBuffer(self.device.0, output.len() * 4) };
+        let output_buffer = unsafe {
+            oidnNewBuffer(self.device.0, len * 4)
+        };
         unsafe { oidnWriteBuffer(output_buffer, 0, output.len() * 4, output.as_ptr() as *const _) }
         unsafe {
             oidnSetFilterImage(
@@ -261,9 +284,13 @@ impl<'a> RayTracing<'a> {
 
             oidnCommitFilter(self.handle);
             oidnExecuteFilter(self.handle);
-            std::ptr::copy(oidnGetBufferData(output_buffer) as *const f32, output.as_mut_ptr(), output.to_vec().capacity());
-            oidnReleaseBuffer(output_buffer);
+        }
+        unsafe {
+            oidnReadBuffer(output_buffer, 0, output.len() * 4, output.as_mut_ptr() as *mut _);
+        }
+        unsafe {
             oidnReleaseBuffer(color_buffer);
+            oidnReleaseBuffer(output_buffer);
         }
         Ok(())
     }
