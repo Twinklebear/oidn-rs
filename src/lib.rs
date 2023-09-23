@@ -55,3 +55,27 @@ pub enum Error {
     Canceled = sys::OIDNError_OIDN_ERROR_CANCELLED as u32,
     InvalidImageDimensions,
 }
+
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
+pub enum Quality {
+    Default = sys::OIDNQuality_OIDN_QUALITY_DEFAULT as u32,
+    Balanced = sys::OIDNQuality_OIDN_QUALITY_BALANCED as u32,
+    High = sys::OIDNQuality_OIDN_QUALITY_HIGH as u32,
+}
+
+impl Quality {
+    pub fn as_raw_oidn_quality(&self) -> sys::OIDNQuality {
+        return match self {
+            Quality::Default => {
+                sys::OIDNQuality_OIDN_QUALITY_DEFAULT
+            }
+            Quality::Balanced => {
+                sys::OIDNQuality_OIDN_QUALITY_BALANCED
+            }
+            Quality::High => {
+                sys::OIDNQuality_OIDN_QUALITY_HIGH
+            }
+        }
+    }
+}
