@@ -60,9 +60,6 @@ impl<'a> RayTracing<'a> {
     ) -> &mut RayTracing<'a> {
         match self.albedo {
             None => {
-                unsafe {
-                    oidnRetainDevice(self.device.0);
-                }
                 let byte_size = albedo.len() * 4;
                 let albedo_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
                 unsafe { oidnWriteBuffer(albedo_buffer, 0, byte_size, albedo.as_ptr() as *const _) }
@@ -75,9 +72,6 @@ impl<'a> RayTracing<'a> {
         }
         match self.normal {
             None => {
-                unsafe {
-                    oidnRetainDevice(self.device.0);
-                }
                 let byte_size = normal.len() * 4;
                 let normal_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
                 unsafe { oidnWriteBuffer(normal_buffer, 0, byte_size, normal.as_ptr() as *const _) }
@@ -96,9 +90,6 @@ impl<'a> RayTracing<'a> {
     pub fn albedo(&mut self, albedo: &[f32]) -> &mut RayTracing<'a> {
         match self.albedo {
             None => {
-                unsafe {
-                    oidnRetainDevice(self.device.0);
-                }
                 let byte_size = albedo.len() * 4;
                 let albedo_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
                 unsafe { oidnWriteBuffer(albedo_buffer, 0, byte_size, albedo.as_ptr() as *const _) }
@@ -243,9 +234,6 @@ impl<'a> RayTracing<'a> {
                 output.as_ptr()
             }
         };
-        unsafe {
-            oidnRetainDevice(self.device.0);
-        }
         let color_buffer = unsafe {
             oidnNewBuffer(self.device.0, byte_size)
         };
@@ -266,9 +254,6 @@ impl<'a> RayTracing<'a> {
 
         if output.len() != self.img_dims.2 {
             return Err(Error::InvalidImageDimensions);
-        }
-        unsafe {
-            oidnRetainDevice(self.device.0);
         }
         let output_buffer = unsafe {
             oidnNewBuffer(self.device.0, byte_size)
