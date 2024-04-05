@@ -1,4 +1,4 @@
-use std::{convert::TryInto, ffi::CStr, os::raw::c_char, ptr};
+use std::{ffi::CStr, os::raw::c_char, ptr};
 
 use crate::sys::*;
 use crate::Error;
@@ -32,7 +32,7 @@ impl Device {
     pub fn cuda() -> Option<Self> {
         let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_CUDA) };
         if handle.is_null() {
-            return None
+            return None;
         }
         unsafe {
             oidnCommitDevice(handle);
@@ -43,7 +43,7 @@ impl Device {
     pub fn sycl() -> Option<Self> {
         let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_SYCL) };
         if handle.is_null() {
-            return None
+            return None;
         }
         unsafe {
             oidnCommitDevice(handle);
@@ -54,7 +54,7 @@ impl Device {
     pub fn hip() -> Option<Self> {
         let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_HIP) };
         if handle.is_null() {
-            return None
+            return None;
         }
         unsafe {
             oidnCommitDevice(handle);
