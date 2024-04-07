@@ -50,12 +50,12 @@ jobs:
               with:
                   toolchain: stable
             - run: choco install wget
-            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.vc14.windows.zip
-            - run: 7z x oidn-${env:OIDN_VERSION}.x64.vc14.windows.zip -y
+            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.windows.zip
+            - run: 7z x oidn-${env:OIDN_VERSION}.x64.windows.zip -y
             - run: |
-                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.vc14.windows/"
+                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo build --all --all-targets
             - run: |
-                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.vc14.windows/"
+                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo clippy --all --all-targets -- -D warnings
 
