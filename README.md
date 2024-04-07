@@ -1,7 +1,7 @@
 # `oidn`
 
 [![Crates.io](https://img.shields.io/crates/v/oidn.svg)](https://crates.io/crates/oidn)
-[![Build Status](https://travis-ci.org/Twinklebear/oidn-rs.svg?branch=master)](https://travis-ci.org/Twinklebear/oidn-rs)
+[![CI](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml/badge.svg)](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml)
 
 Rust bindings to Intel’s [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
 
