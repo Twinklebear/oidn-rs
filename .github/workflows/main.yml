@@ -6,7 +6,7 @@ on:
         - cron: "0 0 * * 1"
 env:
     CARGO_TERM_COLOR: always
-    OIDN_VERSION: 2.1.0
+    OIDN_VERSION: 2.2.2
 jobs:
     build_linux:
         runs-on: ubuntu-latest
@@ -26,7 +26,7 @@ jobs:
               env:
                   RUSTDOCFLAGS: -Dwarnings
             - name: Format Core
-              run: cargo fmt -- --check 
+              run: cargo fmt -- --check
     build_mac:
         runs-on: macos-latest
         steps:
@@ -50,12 +50,12 @@ jobs:
               with:
                   toolchain: stable
             - run: choco install wget
-            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.vc14.windows.zip
-            - run: 7z x oidn-${env:OIDN_VERSION}.x64.vc14.windows.zip -y
+            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.windows.zip
+            - run: 7z x oidn-${env:OIDN_VERSION}.x64.windows.zip -y
             - run: |
-                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.vc14.windows/"
+                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo build --all --all-targets
             - run: |
-                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.vc14.windows/"
+                $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo clippy --all --all-targets -- -D warnings
 

@@ -46,36 +46,30 @@ pub use filter::RayTracing;
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
 pub enum Error {
-    None = sys::OIDNError_OIDN_ERROR_NONE as u32,
-    Unknown = sys::OIDNError_OIDN_ERROR_UNKNOWN as u32,
-    InvalidArgument = sys::OIDNError_OIDN_ERROR_INVALID_ARGUMENT as u32,
-    InvalidOperation = sys::OIDNError_OIDN_ERROR_INVALID_OPERATION as u32,
-    OutOfMemory = sys::OIDNError_OIDN_ERROR_OUT_OF_MEMORY as u32,
-    UnsupportedFormat = sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE as u32,
-    Canceled = sys::OIDNError_OIDN_ERROR_CANCELLED as u32,
+    None = sys::OIDNError_OIDN_ERROR_NONE,
+    Unknown = sys::OIDNError_OIDN_ERROR_UNKNOWN,
+    InvalidArgument = sys::OIDNError_OIDN_ERROR_INVALID_ARGUMENT,
+    InvalidOperation = sys::OIDNError_OIDN_ERROR_INVALID_OPERATION,
+    OutOfMemory = sys::OIDNError_OIDN_ERROR_OUT_OF_MEMORY,
+    UnsupportedFormat = sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE,
+    Canceled = sys::OIDNError_OIDN_ERROR_CANCELLED,
     InvalidImageDimensions,
 }
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
 pub enum Quality {
-    Default = sys::OIDNQuality_OIDN_QUALITY_DEFAULT as u32,
-    Balanced = sys::OIDNQuality_OIDN_QUALITY_BALANCED as u32,
-    High = sys::OIDNQuality_OIDN_QUALITY_HIGH as u32,
+    Default = sys::OIDNQuality_OIDN_QUALITY_DEFAULT,
+    Balanced = sys::OIDNQuality_OIDN_QUALITY_BALANCED,
+    High = sys::OIDNQuality_OIDN_QUALITY_HIGH,
 }
 
 impl Quality {
     pub fn as_raw_oidn_quality(&self) -> sys::OIDNQuality {
-        return match self {
-            Quality::Default => {
-                sys::OIDNQuality_OIDN_QUALITY_DEFAULT
-            }
-            Quality::Balanced => {
-                sys::OIDNQuality_OIDN_QUALITY_BALANCED
-            }
-            Quality::High => {
-                sys::OIDNQuality_OIDN_QUALITY_HIGH
-            }
+        match self {
+            Quality::Default => sys::OIDNQuality_OIDN_QUALITY_DEFAULT,
+            Quality::Balanced => sys::OIDNQuality_OIDN_QUALITY_BALANCED,
+            Quality::High => sys::OIDNQuality_OIDN_QUALITY_HIGH,
         }
     }
 }

@@ -53,11 +53,7 @@ impl<'a> RayTracing<'a> {
     /// Normal must contain the shading normal as three channels per pixel
     /// *world-space* or *view-space* vectors with arbitrary length, values
     /// in `[-1, 1]`.
-    pub fn albedo_normal(
-        &mut self,
-        albedo: &[f32],
-        normal: &[f32],
-    ) -> &mut RayTracing<'a> {
+    pub fn albedo_normal(&mut self, albedo: &[f32], normal: &[f32]) -> &mut RayTracing<'a> {
         match self.albedo {
             None => {
                 let byte_size = albedo.len() * 4;
@@ -156,7 +152,7 @@ impl<'a> RayTracing<'a> {
                     oidnReleaseBuffer(buffer.0);
                     self.albedo = None;
                 }
-            }
+            },
         }
         match self.normal {
             None => {}
@@ -165,7 +161,7 @@ impl<'a> RayTracing<'a> {
                     oidnReleaseBuffer(buffer.0);
                     self.normal = None;
                 }
-            }
+            },
         }
         self.img_dims = (width, height, buffer_dims);
         self
@@ -234,9 +230,7 @@ impl<'a> RayTracing<'a> {
                 output.as_ptr()
             }
         };
-        let color_buffer = unsafe {
-            oidnNewBuffer(self.device.0, byte_size)
-        };
+        let color_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
         unsafe {
             oidnWriteBuffer(color_buffer, 0, byte_size, color_ptr as *const _);
             oidnSetFilterImage(
@@ -255,9 +249,7 @@ impl<'a> RayTracing<'a> {
         if output.len() != self.img_dims.2 {
             return Err(Error::InvalidImageDimensions);
         }
-        let output_buffer = unsafe {
-            oidnNewBuffer(self.device.0, byte_size)
-        };
+        let output_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
         unsafe {
             oidnSetFilterImage(
                 self.handle,
@@ -279,7 +271,11 @@ impl<'a> RayTracing<'a> {
             oidnSetFilterBool(self.handle, b"srgb\0" as *const _ as _, self.srgb);
             oidnSetFilterBool(self.handle, b"clean_aux\0" as *const _ as _, self.clean_aux);
 
-            oidnSetFilterInt(self.handle, b"quality\0" as *const _ as _, self.filter_quality);
+            oidnSetFilterInt(
+                self.handle,
+                b"quality\0" as *const _ as _,
+                self.filter_quality as i32,
+            );
 
             oidnCommitFilter(self.handle);
             oidnExecuteFilter(self.handle);
@@ -299,14 +295,10 @@ impl<'a> Drop for RayTracing<'a> {
             oidnReleaseFilter(self.handle);
             oidnReleaseDevice(self.device.0);
             if let Some(norm) = self.normal {
-                oidnReleaseBuffer(
-                    norm.0
-                );
+                oidnReleaseBuffer(norm.0);
             }
             if let Some(alb) = self.albedo {
-                oidnReleaseBuffer(
-                    alb.0
-                );
+                oidnReleaseBuffer(alb.0);
             }
         }
     }
