@@ -62,6 +62,17 @@ impl Device {
         Some(Self(handle))
     }
 
+    pub fn metal() -> Option<Self> {
+        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_METAL) };
+        if handle.is_null() {
+            return None;
+        }
+        unsafe {
+            oidnCommitDevice(handle);
+        }
+        Some(Self(handle))
+    }
+
     pub fn get_error(&self) -> Result<(), (Error, String)> {
         let mut err_msg = ptr::null();
         let err = unsafe { oidnGetDeviceError(self.0, &mut err_msg as *mut *const c_char) };
