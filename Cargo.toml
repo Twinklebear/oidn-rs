@@ -1,6 +1,6 @@
 [package]
 name = "oidn"
-version = "2.2.2"
+version = "2.2.3"
 edition = "2021"
 authors = ["Will Usher <will@willusher.io>"]
 build = "build.rs"
