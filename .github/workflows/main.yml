@@ -28,9 +28,9 @@ jobs:
         runs-on: macos-latest
         steps:
             - uses: actions/checkout@v4
-            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.arm.macos.tar.gz
-            - run: tar -xf oidn-${OIDN_VERSION}.arm.macos.tar.gz
-            - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.arm.macos" >> $GITHUB_ENV
+            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.arm64.macos.tar.gz
+            - run: tar -xf oidn-${OIDN_VERSION}.arm64.macos.tar.gz
+            - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.arm64.macos" >> $GITHUB_ENV
             - run: echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
             - run: cp $OIDN_DIR/lib/*dylib .
             - run: cargo build --all --all-targets
