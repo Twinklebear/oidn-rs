@@ -73,6 +73,20 @@ impl Device {
         Some(Self(handle))
     }
 
+    /// # Safety
+    /// Raw device must not be invalid (e.g. destroyed)
+    ///
+    /// Raw device must be Committed using `oidnCommitDevice
+    pub unsafe fn from_raw(device: OIDNDevice) -> Self {
+        Self(device)
+    }
+
+    /// # Safety
+    /// Raw device must not be made invalid (e.g. by destroying it)
+    pub unsafe fn raw(&self) -> OIDNDevice {
+        self.0
+    }
+
     pub fn get_error(&self) -> Result<(), (Error, String)> {
         let mut err_msg = ptr::null();
         let err = unsafe { oidnGetDeviceError(self.0, &mut err_msg as *mut *const c_char) };

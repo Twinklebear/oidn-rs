@@ -37,6 +37,7 @@ pub mod device;
 pub mod filter;
 #[allow(non_upper_case_globals, non_camel_case_types, non_snake_case)]
 pub mod sys;
+mod buffer;
 
 #[doc(inline)]
 pub use device::Device;
