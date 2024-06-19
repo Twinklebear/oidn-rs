@@ -74,9 +74,9 @@ impl Device {
     }
 
     /// # Safety
-    /// Raw device must not be invalid (e.g. destroyed)
+    /// Raw device must not be invalid (e.g. destroyed, null, ect.)
     ///
-    /// Raw device must be Committed using `oidnCommitDevice
+    /// Raw device must be Committed using [oidnCommitDevice]
     pub unsafe fn from_raw(device: OIDNDevice) -> Self {
         Self(device)
     }

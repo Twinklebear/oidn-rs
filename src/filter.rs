@@ -1,3 +1,4 @@
+use std::mem;
 use crate::{device::Device, buffer::Buffer, sys::*, Error, Quality};
 
 /// A generic ray tracing denoising filter for denoising
@@ -228,7 +229,10 @@ impl<'a> RayTracing<'a> {
                 Some(self.device.create_buffer(color).ok_or(Error::OutOfMemory)?)
             }
         };
-        self.execute_filter_buffer(color.as_ref(), &mut self.device.create_buffer(output).ok_or(Error::OutOfMemory)?)
+        let mut out = self.device.create_buffer(output).ok_or(Error::OutOfMemory)?;
+        self.execute_filter_buffer(color.as_ref(), &mut out)?;
+        unsafe { oidnReadBuffer(out.buf, 0, out.size * mem::size_of::<f32>(), output.as_mut_ptr() as *mut _) };
+        Ok(())
     }
 
     fn execute_filter_buffer(&self, color: Option<&Buffer>, output: &mut Buffer) -> Result<(), Error> {
