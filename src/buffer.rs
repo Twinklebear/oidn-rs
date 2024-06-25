@@ -1,8 +1,9 @@
-use std::mem;
+use crate::sys::{
+    oidnGetBufferSize, oidnNewBuffer, oidnReleaseBuffer, oidnWriteBuffer, OIDNBuffer,
+};
 use crate::Device;
-use crate::sys::{OIDNBuffer, oidnGetBufferSize, oidnNewBuffer, oidnReleaseBuffer, oidnWriteBuffer};
 
-pub struct Buffer{
+pub struct Buffer {
     pub(crate) buf: OIDNBuffer,
     pub(crate) size: usize,
     pub(crate) id: isize,
@@ -11,7 +12,7 @@ pub struct Buffer{
 impl Device {
     /// Creates a new buffer from a slice, returns null if buffer creation failed
     pub fn create_buffer(&self, contents: &[f32]) -> Option<Buffer> {
-        let byte_size = contents.len() * mem::size_of::<f32>();
+        let byte_size = std::mem::size_of_val(contents);
         let buffer = unsafe {
             let buf = oidnNewBuffer(self.0, byte_size);
             if buf.is_null() {
@@ -20,7 +21,7 @@ impl Device {
             oidnWriteBuffer(buf, 0, byte_size, contents.as_ptr() as *const _);
             buf
         };
-        Some(Buffer{
+        Some(Buffer {
             buf: buffer,
             size: contents.len(),
             id: self.0 as isize,
@@ -46,7 +47,7 @@ impl Buffer {
         if self.size != contents.len() {
             return None;
         }
-        let byte_size = contents.len() * mem::size_of::<f32>();
+        let byte_size = std::mem::size_of_val(contents);
         unsafe {
             oidnWriteBuffer(self.buf, 0, byte_size, contents.as_ptr() as *const _);
         }

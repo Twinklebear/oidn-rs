@@ -1,5 +1,5 @@
+use crate::{buffer::Buffer, device::Device, sys::*, Error, Quality};
 use std::mem;
-use crate::{device::Device, buffer::Buffer, sys::*, Error, Quality};
 
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
@@ -58,28 +58,34 @@ impl<'a> RayTracing<'a> {
     /// # Panics
     /// - if resource creation fails
     pub fn albedo_normal(&mut self, albedo: &[f32], normal: &[f32]) -> &mut RayTracing<'a> {
-        match self.albedo.as_mut().and_then(|buf| if buf.size == albedo.len() {
-            Some(buf)
-        } else {
-            None
+        match self.albedo.as_mut().and_then(|buf| {
+            if buf.size == albedo.len() {
+                Some(buf)
+            } else {
+                None
+            }
         }) {
             None => {
                 self.albedo = Some(self.device.create_buffer(albedo).unwrap());
             }
             Some(buf) => {
-                buf.write(albedo).expect("we check if the size is the same already");
+                buf.write(albedo)
+                    .expect("we check if the size is the same already");
             }
         }
-        match self.normal.as_mut().and_then(|buf| if buf.size == normal.len() {
-            Some(buf)
-        } else {
-            None
+        match self.normal.as_mut().and_then(|buf| {
+            if buf.size == normal.len() {
+                Some(buf)
+            } else {
+                None
+            }
         }) {
             None => {
                 self.albedo = Some(self.device.create_buffer(normal).unwrap());
             }
             Some(buf) => {
-                buf.write(normal).expect("we check if the size is the same already");
+                buf.write(normal)
+                    .expect("we check if the size is the same already");
             }
         }
         self
@@ -91,16 +97,19 @@ impl<'a> RayTracing<'a> {
     /// # Panics
     /// - if resource creation fails
     pub fn albedo(&mut self, albedo: &[f32]) -> &mut RayTracing<'a> {
-        match self.albedo.as_mut().and_then(|buf| if buf.size == albedo.len() {
-            Some(buf)
-        } else {
-            None
+        match self.albedo.as_mut().and_then(|buf| {
+            if buf.size == albedo.len() {
+                Some(buf)
+            } else {
+                None
+            }
         }) {
             None => {
                 self.albedo = Some(self.device.create_buffer(albedo).unwrap());
             }
             Some(buf) => {
-                buf.write(albedo).expect("we check if the size is the same already");
+                buf.write(albedo)
+                    .expect("we check if the size is the same already");
             }
         }
         self
@@ -115,9 +124,13 @@ impl<'a> RayTracing<'a> {
     /// This function is the same as [RayTracing::albedo_normal] but takes buffers instead
     ///
     /// Returns [None] if either buffer was not created by this device
-    pub fn albedo_normal_buffer(&mut self, albedo: Buffer, normal: Buffer) -> Option<&mut RayTracing<'a>> {
+    pub fn albedo_normal_buffer(
+        &mut self,
+        albedo: Buffer,
+        normal: Buffer,
+    ) -> Option<&mut RayTracing<'a>> {
         if albedo.id != self.device.0 as isize || normal.id != self.device.0 as isize {
-            return None
+            return None;
         }
         self.albedo = Some(albedo);
         self.normal = Some(normal);
@@ -132,7 +145,7 @@ impl<'a> RayTracing<'a> {
     /// Returns [None] if albedo buffer was not created by this device
     pub fn albedo_buffer(&mut self, albedo: Buffer) -> Option<&mut RayTracing<'a>> {
         if albedo.id != self.device.0 as isize {
-            return None
+            return None;
         }
         self.albedo = Some(albedo);
         Some(self)
@@ -192,7 +205,7 @@ impl<'a> RayTracing<'a> {
                 if buffer.size != buffer_dims {
                     self.albedo = None;
                 }
-            },
+            }
         }
         match &self.normal {
             None => {}
@@ -200,7 +213,7 @@ impl<'a> RayTracing<'a> {
                 if buffer.size != buffer_dims {
                     self.normal = None;
                 }
-            },
+            }
         }
         self.img_dims = (width, height, buffer_dims);
         self
@@ -225,17 +238,29 @@ impl<'a> RayTracing<'a> {
     fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), Error> {
         let color = match color {
             None => None,
-            Some(color) => {
-                Some(self.device.create_buffer(color).ok_or(Error::OutOfMemory)?)
-            }
+            Some(color) => Some(self.device.create_buffer(color).ok_or(Error::OutOfMemory)?),
         };
-        let mut out = self.device.create_buffer(output).ok_or(Error::OutOfMemory)?;
+        let mut out = self
+            .device
+            .create_buffer(output)
+            .ok_or(Error::OutOfMemory)?;
         self.execute_filter_buffer(color.as_ref(), &mut out)?;
-        unsafe { oidnReadBuffer(out.buf, 0, out.size * mem::size_of::<f32>(), output.as_mut_ptr() as *mut _) };
+        unsafe {
+            oidnReadBuffer(
+                out.buf,
+                0,
+                out.size * mem::size_of::<f32>(),
+                output.as_mut_ptr() as *mut _,
+            )
+        };
         Ok(())
     }
 
-    fn execute_filter_buffer(&self, color: Option<&Buffer>, output: &mut Buffer) -> Result<(), Error> {
+    fn execute_filter_buffer(
+        &self,
+        color: Option<&Buffer>,
+        output: &mut Buffer,
+    ) -> Result<(), Error> {
         if let Some(alb) = &self.albedo {
             if alb.size != self.img_dims.2 {
                 return Err(Error::InvalidImageDimensions);
@@ -286,6 +311,8 @@ impl<'a> RayTracing<'a> {
                 if output.size != self.img_dims.2 {
                     return Err(Error::InvalidImageDimensions);
                 }
+                // actually this is a needed borrow, the compiler complains otherwise
+                #[warn(clippy::needless_borrow)]
                 &output
             }
         };

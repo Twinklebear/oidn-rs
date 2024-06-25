@@ -33,11 +33,11 @@
 
 use num_enum::TryFromPrimitive;
 
+pub mod buffer;
 pub mod device;
 pub mod filter;
 #[allow(non_upper_case_globals, non_camel_case_types, non_snake_case)]
 pub mod sys;
-pub mod buffer;
 
 #[doc(inline)]
 pub use device::Device;
