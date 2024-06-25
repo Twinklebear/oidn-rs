@@ -312,7 +312,7 @@ impl<'a> RayTracing<'a> {
                     return Err(Error::InvalidImageDimensions);
                 }
                 // actually this is a needed borrow, the compiler complains otherwise
-                #[warn(clippy::needless_borrow)]
+                #[allow(clippy::needless_borrow)]
                 &output
             }
         };
