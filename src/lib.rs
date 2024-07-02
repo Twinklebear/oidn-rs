@@ -40,6 +40,8 @@ pub mod filter;
 pub mod sys;
 
 #[doc(inline)]
+pub use buffer::Buffer;
+#[doc(inline)]
 pub use device::Device;
 #[doc(inline)]
 pub use filter::RayTracing;

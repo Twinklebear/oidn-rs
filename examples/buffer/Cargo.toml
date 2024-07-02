@@ -1,0 +1,8 @@
+[package]
+name = "buffer"
+version = "0.1.0"
+authors = ["Vecvec"]
+
+[dependencies]
+oidn = { path = "../../" }
+rand = "0.8.5"
