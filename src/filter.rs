@@ -302,6 +302,9 @@ impl<'a> RayTracing<'a> {
         }
         let color_buffer = match color {
             Some(color) => {
+                if color.id != self.device.0 as isize {
+                    return Err(Error::InvalidArgument);
+                }
                 if color.size != self.img_dims.2 {
                     return Err(Error::InvalidImageDimensions);
                 }
@@ -329,7 +332,9 @@ impl<'a> RayTracing<'a> {
                 0,
             );
         }
-
+        if output.id != self.device.0 as isize {
+            return Err(Error::InvalidArgument);
+        }
         if output.size != self.img_dims.2 {
             return Err(Error::InvalidImageDimensions);
         }
