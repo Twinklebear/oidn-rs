@@ -8,7 +8,7 @@ use crate::Error;
 /// Open Image Denoise supports a device concept, which allows different
 /// components of the application to use the API without interfering with each
 /// other.
-pub struct Device(pub(crate) OIDNDevice, pub(crate) Arc<()>);
+pub struct Device(pub(crate) OIDNDevice, pub(crate) Arc<u8>);
 
 impl Device {
     /// Create a device using the fastest device available to run denoising
@@ -17,7 +17,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Self(handle, Arc::new(()))
+        Self(handle, Arc::new(0))
     }
 
     /// Create a device to run denoising on the CPU
@@ -26,7 +26,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Self(handle, Arc::new(()))
+        Self(handle, Arc::new(0))
     }
 
     pub fn cuda() -> Option<Self> {
@@ -37,7 +37,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Some(Self(handle, Arc::new(())))
+        Some(Self(handle, Arc::new(0)))
     }
 
     pub fn sycl() -> Option<Self> {
@@ -48,7 +48,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Some(Self(handle, Arc::new(())))
+        Some(Self(handle, Arc::new(0)))
     }
 
     pub fn hip() -> Option<Self> {
@@ -59,7 +59,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Some(Self(handle, Arc::new(())))
+        Some(Self(handle, Arc::new(0)))
     }
 
     pub fn metal() -> Option<Self> {
@@ -70,7 +70,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Some(Self(handle, Arc::new(())))
+        Some(Self(handle, Arc::new(0)))
     }
 
     /// # Safety
@@ -78,7 +78,7 @@ impl Device {
     ///
     /// Raw device must be Committed using [oidnCommitDevice]
     pub unsafe fn from_raw(device: OIDNDevice) -> Self {
-        Self(device, Arc::new(()))
+        Self(device, Arc::new(0))
     }
 
     /// # Safety

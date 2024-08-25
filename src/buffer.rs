@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub struct Buffer {
     pub(crate) buf: OIDNBuffer,
     pub(crate) size: usize,
-    pub(crate) device_arc: Arc<()>,
+    pub(crate) device_arc: Arc<u8>,
 }
 
 impl Device {
