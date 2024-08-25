@@ -1,7 +1,7 @@
-use std::{ffi::CStr, os::raw::c_char, ptr};
-use std::sync::Arc;
 use crate::sys::*;
 use crate::Error;
+use std::sync::Arc;
+use std::{ffi::CStr, os::raw::c_char, ptr};
 
 /// An Open Image Denoise device (e.g. a CPU).
 ///
