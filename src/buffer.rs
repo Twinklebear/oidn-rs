@@ -4,11 +4,12 @@ use crate::sys::{
 };
 use crate::Device;
 use std::mem;
+use std::sync::Arc;
 
 pub struct Buffer {
     pub(crate) buf: OIDNBuffer,
     pub(crate) size: usize,
-    pub(crate) id: isize,
+    pub(crate) device_arc: Arc<()>,
 }
 
 impl Device {
@@ -26,7 +27,7 @@ impl Device {
         Some(Buffer {
             buf: buffer,
             size: contents.len(),
-            id: self.0 as isize,
+            device_arc: self.1.clone(),
         })
     }
     /// # Safety
@@ -38,8 +39,12 @@ impl Device {
         Buffer {
             buf: buffer,
             size,
-            id: self.0 as isize,
+            device_arc: self.1.clone(),
         }
+    }
+
+    pub(crate) fn same_device_as_buf(&self, buf: &Buffer) -> bool {
+        self.1.as_ref() as *const _ as isize == buf.device_arc.as_ref() as *const _ as isize
     }
 }
 

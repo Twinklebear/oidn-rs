@@ -129,7 +129,7 @@ impl<'a> RayTracing<'a> {
         albedo: Buffer,
         normal: Buffer,
     ) -> Option<&mut RayTracing<'a>> {
-        if albedo.id != self.device.0 as isize || normal.id != self.device.0 as isize {
+        if !self.device.same_device_as_buf(&albedo) || !self.device.same_device_as_buf(&normal) {
             return None;
         }
         self.albedo = Some(albedo);
@@ -144,7 +144,7 @@ impl<'a> RayTracing<'a> {
     ///
     /// Returns [None] if albedo buffer was not created by this device
     pub fn albedo_buffer(&mut self, albedo: Buffer) -> Option<&mut RayTracing<'a>> {
-        if albedo.id != self.device.0 as isize {
+        if !self.device.same_device_as_buf(&albedo) {
             return None;
         }
         self.albedo = Some(albedo);
@@ -302,7 +302,7 @@ impl<'a> RayTracing<'a> {
         }
         let color_buffer = match color {
             Some(color) => {
-                if color.id != self.device.0 as isize {
+                if !self.device.same_device_as_buf(color) {
                     return Err(Error::InvalidArgument);
                 }
                 if color.size != self.img_dims.2 {
@@ -332,7 +332,7 @@ impl<'a> RayTracing<'a> {
                 0,
             );
         }
-        if output.id != self.device.0 as isize {
+        if !self.device.same_device_as_buf(output) {
             return Err(Error::InvalidArgument);
         }
         if output.size != self.img_dims.2 {
