@@ -1,14 +1,14 @@
-use std::{ffi::CStr, os::raw::c_char, ptr};
-
 use crate::sys::*;
 use crate::Error;
+use std::sync::Arc;
+use std::{ffi::CStr, os::raw::c_char, ptr};
 
 /// An Open Image Denoise device (e.g. a CPU).
 ///
 /// Open Image Denoise supports a device concept, which allows different
 /// components of the application to use the API without interfering with each
 /// other.
-pub struct Device(pub(crate) OIDNDevice);
+pub struct Device(pub(crate) OIDNDevice, pub(crate) Arc<u8>);
 
 impl Device {
     /// Create a device using the fastest device available to run denoising
@@ -17,7 +17,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Self(handle)
+        Self(handle, Arc::new(0))
     }
 
     /// Create a device to run denoising on the CPU
@@ -26,7 +26,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Self(handle)
+        Self(handle, Arc::new(0))
     }
 
     pub fn cuda() -> Option<Self> {
@@ -37,7 +37,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Some(Self(handle))
+        Some(Self(handle, Arc::new(0)))
     }
 
     pub fn sycl() -> Option<Self> {
@@ -48,7 +48,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Some(Self(handle))
+        Some(Self(handle, Arc::new(0)))
     }
 
     pub fn hip() -> Option<Self> {
@@ -59,7 +59,7 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Some(Self(handle))
+        Some(Self(handle, Arc::new(0)))
     }
 
     pub fn metal() -> Option<Self> {
@@ -70,7 +70,21 @@ impl Device {
         unsafe {
             oidnCommitDevice(handle);
         }
-        Some(Self(handle))
+        Some(Self(handle, Arc::new(0)))
+    }
+
+    /// # Safety
+    /// Raw device must not be invalid (e.g. destroyed, null, ect.)
+    ///
+    /// Raw device must be Committed using [oidnCommitDevice]
+    pub unsafe fn from_raw(device: OIDNDevice) -> Self {
+        Self(device, Arc::new(0))
+    }
+
+    /// # Safety
+    /// Raw device must not be made invalid (e.g. by destroying it)
+    pub unsafe fn raw(&self) -> OIDNDevice {
+        self.0
     }
 
     pub fn get_error(&self) -> Result<(), (Error, String)> {

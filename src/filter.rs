@@ -1,4 +1,5 @@
-use crate::{device::Device, sys::*, Error, Quality};
+use crate::{buffer::Buffer, device::Device, sys::*, Error, Quality};
+use std::mem;
 
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
@@ -6,8 +7,8 @@ use crate::{device::Device, sys::*, Error, Quality};
 pub struct RayTracing<'a> {
     handle: OIDNFilter,
     device: &'a Device,
-    albedo: Option<(OIDNBuffer, usize)>,
-    normal: Option<(OIDNBuffer, usize)>,
+    albedo: Option<Buffer>,
+    normal: Option<Buffer>,
     hdr: bool,
     input_scale: f32,
     srgb: bool,
@@ -53,29 +54,38 @@ impl<'a> RayTracing<'a> {
     /// Normal must contain the shading normal as three channels per pixel
     /// *world-space* or *view-space* vectors with arbitrary length, values
     /// in `[-1, 1]`.
+    ///
+    /// # Panics
+    /// - if resource creation fails
     pub fn albedo_normal(&mut self, albedo: &[f32], normal: &[f32]) -> &mut RayTracing<'a> {
-        match self.albedo {
-            None => {
-                let byte_size = albedo.len() * 4;
-                let albedo_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
-                unsafe { oidnWriteBuffer(albedo_buffer, 0, byte_size, albedo.as_ptr() as *const _) }
-                self.albedo = Some((albedo_buffer, albedo.len()));
+        match self.albedo.as_mut().and_then(|buf| {
+            if buf.size == albedo.len() {
+                Some(buf)
+            } else {
+                None
             }
-            Some((buffer, _)) => {
-                unsafe { oidnWriteBuffer(buffer, 0, albedo.len() * 4, albedo.as_ptr() as *const _) }
-                self.albedo = Some((buffer, albedo.len()));
+        }) {
+            None => {
+                self.albedo = Some(self.device.create_buffer(albedo).unwrap());
+            }
+            Some(buf) => {
+                buf.write(albedo)
+                    .expect("we check if the size is the same already");
             }
         }
-        match self.normal {
-            None => {
-                let byte_size = normal.len() * 4;
-                let normal_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
-                unsafe { oidnWriteBuffer(normal_buffer, 0, byte_size, normal.as_ptr() as *const _) }
-                self.normal = Some((normal_buffer, normal.len()));
+        match self.normal.as_mut().and_then(|buf| {
+            if buf.size == normal.len() {
+                Some(buf)
+            } else {
+                None
             }
-            Some((buffer, _)) => {
-                unsafe { oidnWriteBuffer(buffer, 0, normal.len() * 4, normal.as_ptr() as *const _) }
-                self.normal = Some((buffer, normal.len()));
+        }) {
+            None => {
+                self.albedo = Some(self.device.create_buffer(normal).unwrap());
+            }
+            Some(buf) => {
+                buf.write(normal)
+                    .expect("we check if the size is the same already");
             }
         }
         self
@@ -83,20 +93,62 @@ impl<'a> RayTracing<'a> {
 
     /// Set an input auxiliary image containing the albedo per pixel (three
     /// channels, values in `[0, 1]`).
+    ///
+    /// # Panics
+    /// - if resource creation fails
     pub fn albedo(&mut self, albedo: &[f32]) -> &mut RayTracing<'a> {
-        match self.albedo {
-            None => {
-                let byte_size = albedo.len() * 4;
-                let albedo_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
-                unsafe { oidnWriteBuffer(albedo_buffer, 0, byte_size, albedo.as_ptr() as *const _) }
-                self.albedo = Some((albedo_buffer, albedo.len()));
+        match self.albedo.as_mut().and_then(|buf| {
+            if buf.size == albedo.len() {
+                Some(buf)
+            } else {
+                None
             }
-            Some((buffer, _)) => {
-                unsafe { oidnWriteBuffer(buffer, 0, albedo.len() * 4, albedo.as_ptr() as *const _) }
-                self.albedo = Some((buffer, albedo.len()));
+        }) {
+            None => {
+                self.albedo = Some(self.device.create_buffer(albedo).unwrap());
+            }
+            Some(buf) => {
+                buf.write(albedo)
+                    .expect("we check if the size is the same already");
             }
         }
         self
+    }
+    /// Set input auxiliary buffer containing the albedo and normals.
+    ///
+    /// Albedo buffer must have three channels per pixel with values in [0, 1].
+    /// Normal must contain the shading normal as three channels per pixel
+    /// *world-space* or *view-space* vectors with arbitrary length, values
+    /// in `[-1, 1]`.
+    ///
+    /// This function is the same as [RayTracing::albedo_normal] but takes buffers instead
+    ///
+    /// Returns [None] if either buffer was not created by this device
+    pub fn albedo_normal_buffer(
+        &mut self,
+        albedo: Buffer,
+        normal: Buffer,
+    ) -> Option<&mut RayTracing<'a>> {
+        if !self.device.same_device_as_buf(&albedo) || !self.device.same_device_as_buf(&normal) {
+            return None;
+        }
+        self.albedo = Some(albedo);
+        self.normal = Some(normal);
+        Some(self)
+    }
+
+    /// Set an input auxiliary buffer containing the albedo per pixel (three
+    /// channels, values in `[0, 1]`).
+    ///
+    /// This function is the same as [RayTracing::albedo] but takes buffers instead
+    ///
+    /// Returns [None] if albedo buffer was not created by this device
+    pub fn albedo_buffer(&mut self, albedo: Buffer) -> Option<&mut RayTracing<'a>> {
+        if !self.device.same_device_as_buf(&albedo) {
+            return None;
+        }
+        self.albedo = Some(albedo);
+        Some(self)
     }
 
     /// Set whether the color is HDR.
@@ -143,25 +195,25 @@ impl<'a> RayTracing<'a> {
         self
     }
 
+    /// sets the dimensions of the denoising image, if new width * new height
+    /// does not equal old width * old height
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
-        match self.albedo {
+        match &self.albedo {
             None => {}
-            Some(buffer) => unsafe {
-                if buffer.1 != buffer_dims {
-                    oidnReleaseBuffer(buffer.0);
+            Some(buffer) => {
+                if buffer.size != buffer_dims {
                     self.albedo = None;
                 }
-            },
+            }
         }
-        match self.normal {
+        match &self.normal {
             None => {}
-            Some(buffer) => unsafe {
-                if buffer.1 != buffer_dims {
-                    oidnReleaseBuffer(buffer.0);
+            Some(buffer) => {
+                if buffer.size != buffer_dims {
                     self.normal = None;
                 }
-            },
+            }
         }
         self.img_dims = (width, height, buffer_dims);
         self
@@ -171,21 +223,53 @@ impl<'a> RayTracing<'a> {
         self.execute_filter(Some(color), output)
     }
 
+    pub fn filter_buffer(&self, color: &Buffer, output: &mut Buffer) -> Result<(), Error> {
+        self.execute_filter_buffer(Some(color), output)
+    }
+
     pub fn filter_in_place(&self, color: &mut [f32]) -> Result<(), Error> {
         self.execute_filter(None, color)
     }
 
+    pub fn filter_in_place_buffer(&self, color: &mut Buffer) -> Result<(), Error> {
+        self.execute_filter_buffer(None, color)
+    }
+
     fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), Error> {
-        let byte_size = self.img_dims.2 * 4;
-        if let Some(alb) = self.albedo {
-            if alb.1 != self.img_dims.2 {
+        let color = match color {
+            None => None,
+            Some(color) => Some(self.device.create_buffer(color).ok_or(Error::OutOfMemory)?),
+        };
+        let mut out = self
+            .device
+            .create_buffer(output)
+            .ok_or(Error::OutOfMemory)?;
+        self.execute_filter_buffer(color.as_ref(), &mut out)?;
+        unsafe {
+            oidnReadBuffer(
+                out.buf,
+                0,
+                out.size * mem::size_of::<f32>(),
+                output.as_mut_ptr() as *mut _,
+            )
+        };
+        Ok(())
+    }
+
+    fn execute_filter_buffer(
+        &self,
+        color: Option<&Buffer>,
+        output: &mut Buffer,
+    ) -> Result<(), Error> {
+        if let Some(alb) = &self.albedo {
+            if alb.size != self.img_dims.2 {
                 return Err(Error::InvalidImageDimensions);
             }
             unsafe {
                 oidnSetFilterImage(
                     self.handle,
                     b"albedo\0" as *const _ as _,
-                    alb.0,
+                    alb.buf,
                     OIDNFormat_OIDN_FORMAT_FLOAT3,
                     self.img_dims.0 as _,
                     self.img_dims.1 as _,
@@ -197,15 +281,15 @@ impl<'a> RayTracing<'a> {
 
             // No use supplying normal if albedo was
             // not also given.
-            if let Some(norm) = self.normal {
-                if norm.1 != self.img_dims.2 {
+            if let Some(norm) = &self.normal {
+                if norm.size != self.img_dims.2 {
                     return Err(Error::InvalidImageDimensions);
                 }
                 unsafe {
                     oidnSetFilterImage(
                         self.handle,
                         b"normal\0" as *const _ as _,
-                        norm.0,
+                        norm.buf,
                         OIDNFormat_OIDN_FORMAT_FLOAT3,
                         self.img_dims.0 as _,
                         self.img_dims.1 as _,
@@ -216,27 +300,30 @@ impl<'a> RayTracing<'a> {
                 }
             }
         }
-        let color_ptr = match color {
+        let color_buffer = match color {
             Some(color) => {
-                if color.len() != self.img_dims.2 {
+                if !self.device.same_device_as_buf(color) {
+                    return Err(Error::InvalidArgument);
+                }
+                if color.size != self.img_dims.2 {
                     return Err(Error::InvalidImageDimensions);
                 }
-                color.as_ptr()
+                color
             }
             None => {
-                if output.len() != self.img_dims.2 {
+                if output.size != self.img_dims.2 {
                     return Err(Error::InvalidImageDimensions);
                 }
-                output.as_ptr()
+                // actually this is a needed borrow, the compiler complains otherwise
+                #[allow(clippy::needless_borrow)]
+                &output
             }
         };
-        let color_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
         unsafe {
-            oidnWriteBuffer(color_buffer, 0, byte_size, color_ptr as *const _);
             oidnSetFilterImage(
                 self.handle,
                 b"color\0" as *const _ as _,
-                color_buffer,
+                color_buffer.buf,
                 OIDNFormat_OIDN_FORMAT_FLOAT3,
                 self.img_dims.0 as _,
                 self.img_dims.1 as _,
@@ -245,16 +332,17 @@ impl<'a> RayTracing<'a> {
                 0,
             );
         }
-
-        if output.len() != self.img_dims.2 {
+        if !self.device.same_device_as_buf(output) {
+            return Err(Error::InvalidArgument);
+        }
+        if output.size != self.img_dims.2 {
             return Err(Error::InvalidImageDimensions);
         }
-        let output_buffer = unsafe { oidnNewBuffer(self.device.0, byte_size) };
         unsafe {
             oidnSetFilterImage(
                 self.handle,
                 b"output\0" as *const _ as _,
-                output_buffer,
+                output.buf,
                 OIDNFormat_OIDN_FORMAT_FLOAT3,
                 self.img_dims.0 as _,
                 self.img_dims.1 as _,
@@ -279,11 +367,6 @@ impl<'a> RayTracing<'a> {
 
             oidnCommitFilter(self.handle);
             oidnExecuteFilter(self.handle);
-
-            oidnReadBuffer(output_buffer, 0, byte_size, output.as_mut_ptr() as *mut _);
-
-            oidnReleaseBuffer(color_buffer);
-            oidnReleaseBuffer(output_buffer);
         }
         Ok(())
     }
@@ -294,12 +377,6 @@ impl<'a> Drop for RayTracing<'a> {
         unsafe {
             oidnReleaseFilter(self.handle);
             oidnReleaseDevice(self.device.0);
-            if let Some(norm) = self.normal {
-                oidnReleaseBuffer(norm.0);
-            }
-            if let Some(alb) = self.albedo {
-                oidnReleaseBuffer(alb.0);
-            }
         }
     }
 }
