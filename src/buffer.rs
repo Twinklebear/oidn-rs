@@ -35,7 +35,7 @@ impl Device {
     ///
     /// Raw buffer must have been created by this device
     pub unsafe fn create_buffer_from_raw(&self, buffer: OIDNBuffer) -> Buffer {
-        let size = oidnGetBufferSize(buffer);
+        let size = oidnGetBufferSize(buffer) / mem::size_of::<f32>();
         Buffer {
             buf: buffer,
             size,
@@ -73,7 +73,7 @@ impl Buffer {
     }
     /// Reads from the buffer
     pub fn read(&mut self) -> Vec<f32> {
-        let contents = vec![0.0; self.size * mem::size_of::<f32>()];
+        let contents = vec![0.0; self.size];
         unsafe {
             oidnReadBuffer(
                 self.buf,
