@@ -62,11 +62,13 @@ pub enum Error {
 }
 
 #[repr(u32)]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive, Default)]
 pub enum Quality {
+    #[default]
     Default = sys::OIDNQuality_OIDN_QUALITY_DEFAULT,
     Balanced = sys::OIDNQuality_OIDN_QUALITY_BALANCED,
     High = sys::OIDNQuality_OIDN_QUALITY_HIGH,
+    Fast = sys::OIDNQuality_OIDN_QUALITY_FAST,
 }
 
 impl Quality {
@@ -75,6 +77,7 @@ impl Quality {
             Quality::Default => sys::OIDNQuality_OIDN_QUALITY_DEFAULT,
             Quality::Balanced => sys::OIDNQuality_OIDN_QUALITY_BALANCED,
             Quality::High => sys::OIDNQuality_OIDN_QUALITY_HIGH,
+            Quality::Fast => sys::OIDNQuality_OIDN_QUALITY_FAST,
         }
     }
 }
