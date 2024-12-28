@@ -5,7 +5,6 @@ use std::env;
 
 /// A simple test application that shows opening a color image and passing
 /// it to OIDN for denoising. The denoised image is then saved out.
-
 fn main() {
     let args: Vec<_> = env::args().collect();
     let input = image::open(&args[1][..])

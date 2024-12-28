@@ -14,7 +14,6 @@ use std::f32;
 /// An example application that shows opening an HDR EXR image with optional
 /// additional normal and albedo EXR images and denoising it with OIDN.
 /// The denoised image is then tonemaped and saved out as a JPG
-
 const USAGE: &str = "
 denoise_exr
 

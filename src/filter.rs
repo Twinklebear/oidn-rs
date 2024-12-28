@@ -372,7 +372,7 @@ impl<'a> RayTracing<'a> {
     }
 }
 
-impl<'a> Drop for RayTracing<'a> {
+impl Drop for RayTracing<'_> {
     fn drop(&mut self) {
         unsafe {
             oidnReleaseFilter(self.handle);
@@ -381,4 +381,4 @@ impl<'a> Drop for RayTracing<'a> {
     }
 }
 
-unsafe impl<'a> Send for RayTracing<'a> {}
+unsafe impl Send for RayTracing<'_> {}
