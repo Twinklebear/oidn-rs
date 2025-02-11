@@ -24,6 +24,9 @@ links = "OpenImageDenoise"
 [dependencies]
 num_enum = "0.7.3"
 
+[build-dependencies]
+pkg-config = "0.3.31"
+
 [workspace]
 resolver = "2"
 members = ["examples/*"]
