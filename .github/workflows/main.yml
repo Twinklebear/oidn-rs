@@ -20,7 +20,7 @@ jobs:
               with:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
-                components: clippy
+                components: rustfmt, clippy
             - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
             - run: tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
@@ -45,7 +45,7 @@ jobs:
               with:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
-                components: clippy
+                components: rustfmt, clippy
             - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.arm64.macos.tar.gz
             - run: tar -xf oidn-${OIDN_VERSION}.arm64.macos.tar.gz
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.arm64.macos" >> $GITHUB_ENV
@@ -65,7 +65,7 @@ jobs:
               with:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
-                components: clippy
+                components: rustfmt, clippy
             - run: choco install wget
             - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.windows.zip
             - run: 7z x oidn-${env:OIDN_VERSION}.x64.windows.zip -y
