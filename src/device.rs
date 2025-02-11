@@ -26,12 +26,13 @@ impl Device {
 
     fn try_create(device_type: OIDNDeviceType) -> Option<Self> {
         let handle = get_handle(device_type);
-        match handle.is_null() {
-            true => None,
-            false => unsafe {
+        if !handle.is_null() {
+            unsafe {
                 oidnCommitDevice(handle);
                 Some(Self(handle, Arc::new(0)))
-            },
+            }
+        } else {
+            None
         }
     }
 

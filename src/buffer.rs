@@ -13,7 +13,7 @@ pub struct Buffer {
 }
 
 impl Device {
-    /// Creates a new buffer from a slice, returns null if buffer creation
+    /// Creates a new buffer from a slice, returns None if buffer creation
     /// failed
     pub fn create_buffer(&self, contents: &[f32]) -> Option<Buffer> {
         let byte_size = mem::size_of_val(contents);
@@ -21,9 +21,10 @@ impl Device {
             let buf = oidnNewBuffer(self.0, byte_size);
             if buf.is_null() {
                 return None;
+            } else {
+                oidnWriteBuffer(buf, 0, byte_size, contents.as_ptr() as *const _);
+                buf
             }
-            oidnWriteBuffer(buf, 0, byte_size, contents.as_ptr() as *const _);
-            buf
         };
         Some(Buffer {
             buf: buffer,
@@ -53,25 +54,29 @@ impl Buffer {
     /// Writes to the buffer, returns [None] if the sizes mismatch
     pub fn write(&mut self, contents: &[f32]) -> Option<()> {
         if self.size != contents.len() {
-            return None;
+            None
+        } else {
+            let byte_size = mem::size_of_val(contents);
+            unsafe {
+                oidnWriteBuffer(self.buf, 0, byte_size, contents.as_ptr() as *const _);
+            }
+            Some(())
         }
-        let byte_size = mem::size_of_val(contents);
-        unsafe {
-            oidnWriteBuffer(self.buf, 0, byte_size, contents.as_ptr() as *const _);
-        }
-        Some(())
     }
+
     /// Reads from the buffer to the array, returns [None] if the sizes mismatch
     pub fn read_to_slice(&mut self, contents: &mut [f32]) -> Option<()> {
         if self.size != contents.len() {
-            return None;
+            None
+        } else {
+            let byte_size = mem::size_of_val(contents);
+            unsafe {
+                oidnReadBuffer(self.buf, 0, byte_size, contents.as_ptr() as *mut _);
+            }
+            Some(())
         }
-        let byte_size = mem::size_of_val(contents);
-        unsafe {
-            oidnReadBuffer(self.buf, 0, byte_size, contents.as_ptr() as *mut _);
-        }
-        Some(())
     }
+
     /// Reads from the buffer
     pub fn read(&mut self) -> Vec<f32> {
         let contents = vec![0.0; self.size];
