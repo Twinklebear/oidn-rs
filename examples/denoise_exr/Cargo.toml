@@ -2,6 +2,7 @@
 name = "denoise_exr"
 version = "0.1.0"
 authors = ["Will Usher <will@willusher.io>"]
+edition = "2021"
 
 [dependencies]
 oidn = { path = "../../" }

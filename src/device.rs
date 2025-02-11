@@ -13,76 +13,57 @@ pub struct Device(pub(crate) OIDNDevice, pub(crate) Arc<u8>);
 impl Device {
     /// Create a device using the fastest device available to run denoising
     pub fn new() -> Self {
-        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_DEFAULT) };
+        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_DEFAULT)
+    }
+
+    fn create(device_type: OIDNDeviceType) -> Self {
+        let handle = get_handle(device_type);
         unsafe {
             oidnCommitDevice(handle);
         }
         Self(handle, Arc::new(0))
     }
 
-    /// Create a device to run denoising on the CPU
+    fn try_create(device_type: OIDNDeviceType) -> Option<Self> {
+        let handle = get_handle(device_type);
+        match handle.is_null() {
+            true => None,
+            false => unsafe {
+                oidnCommitDevice(handle);
+                Some(Self(handle, Arc::new(0)))
+            },
+        }
+    }
+
     pub fn cpu() -> Self {
-        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_CPU) };
-        unsafe {
-            oidnCommitDevice(handle);
-        }
-        Self(handle, Arc::new(0))
-    }
-
-    pub fn cuda() -> Option<Self> {
-        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_CUDA) };
-        if handle.is_null() {
-            return None;
-        }
-        unsafe {
-            oidnCommitDevice(handle);
-        }
-        Some(Self(handle, Arc::new(0)))
+        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_CPU)
     }
 
     pub fn sycl() -> Option<Self> {
-        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_SYCL) };
-        if handle.is_null() {
-            return None;
-        }
-        unsafe {
-            oidnCommitDevice(handle);
-        }
-        Some(Self(handle, Arc::new(0)))
+        Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_SYCL)
+    }
+
+    pub fn cuda() -> Option<Self> {
+        Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_CUDA)
     }
 
     pub fn hip() -> Option<Self> {
-        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_HIP) };
-        if handle.is_null() {
-            return None;
-        }
-        unsafe {
-            oidnCommitDevice(handle);
-        }
-        Some(Self(handle, Arc::new(0)))
+        Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_HIP)
     }
 
     pub fn metal() -> Option<Self> {
-        let handle = unsafe { oidnNewDevice(OIDNDeviceType_OIDN_DEVICE_TYPE_METAL) };
-        if handle.is_null() {
-            return None;
-        }
-        unsafe {
-            oidnCommitDevice(handle);
-        }
-        Some(Self(handle, Arc::new(0)))
+        Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_METAL)
     }
 
     /// # Safety
-    /// Raw device must not be invalid (e.g. destroyed, null, ect.)
-    ///
-    /// Raw device must be Committed using [oidnCommitDevice]
+    /// Raw device must not be invalid (e.g. destroyed, null, etc.)
+    /// Raw device must be committed using [oidnCommitDevice].
     pub unsafe fn from_raw(device: OIDNDevice) -> Self {
         Self(device, Arc::new(0))
     }
 
     /// # Safety
-    /// Raw device must not be made invalid (e.g. by destroying it)
+    /// Raw device must not be made invalid (e.g. by destroying it).
     pub unsafe fn raw(&self) -> OIDNDevice {
         self.0
     }
@@ -114,3 +95,7 @@ impl Default for Device {
 }
 
 unsafe impl Send for Device {}
+
+fn get_handle(device_type: u32) -> *mut OIDNDeviceImpl {
+    unsafe { oidnNewDevice(device_type) }
+}

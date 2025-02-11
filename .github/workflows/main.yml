@@ -6,7 +6,7 @@ on:
         - cron: "0 0 * * 1"
 env:
     CARGO_TERM_COLOR: always
-    OIDN_VERSION: 2.3.1
+    OIDN_VERSION: 2.3.2
 jobs:
     build_linux:
         runs-on: ubuntu-latest

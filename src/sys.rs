@@ -2,6 +2,21 @@
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
+pub struct sycl_device {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sycl_queue {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sycl_event {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct CUstream_st {
     _unused: [u8; 0],
 }
@@ -75,6 +90,9 @@ extern "C" {
     pub fn oidnIsCPUDeviceSupported() -> bool;
 }
 extern "C" {
+    pub fn oidnIsSYCLDeviceSupported(device: *const sycl_device) -> bool;
+}
+extern "C" {
     pub fn oidnIsCUDADeviceSupported(deviceID: ::std::os::raw::c_int) -> bool;
 }
 extern "C" {
@@ -101,6 +119,12 @@ extern "C" {
         pciBus: ::std::os::raw::c_int,
         pciDevice: ::std::os::raw::c_int,
         pciFunction: ::std::os::raw::c_int,
+    ) -> OIDNDevice;
+}
+extern "C" {
+    pub fn oidnNewSYCLDevice(
+        queues: *const sycl_queue,
+        numQueues: ::std::os::raw::c_int,
     ) -> OIDNDevice;
 }
 extern "C" {
@@ -401,4 +425,12 @@ extern "C" {
 }
 extern "C" {
     pub fn oidnExecuteFilterAsync(filter: OIDNFilter);
+}
+extern "C" {
+    pub fn oidnExecuteSYCLFilterAsync(
+        filter: OIDNFilter,
+        depEvents: *const sycl_event,
+        numDepEvents: ::std::os::raw::c_int,
+        doneEvent: *mut sycl_event,
+    );
 }

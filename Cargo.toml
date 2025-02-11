@@ -1,6 +1,6 @@
 [package]
 name = "oidn"
-version = "2.2.4"
+version = "2.3.2"
 edition = "2021"
 authors = ["Will Usher <will@willusher.io>"]
 build = "build.rs"
@@ -22,7 +22,7 @@ exclude = [
 links = "OpenImageDenoise"
 
 [dependencies]
-num_enum = "0.7.2"
+num_enum = "0.7.3"
 
 [workspace]
 resolver = "2"

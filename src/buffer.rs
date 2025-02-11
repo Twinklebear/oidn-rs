@@ -13,7 +13,8 @@ pub struct Buffer {
 }
 
 impl Device {
-    /// Creates a new buffer from a slice, returns null if buffer creation failed
+    /// Creates a new buffer from a slice, returns null if buffer creation
+    /// failed
     pub fn create_buffer(&self, contents: &[f32]) -> Option<Buffer> {
         let byte_size = mem::size_of_val(contents);
         let buffer = unsafe {
