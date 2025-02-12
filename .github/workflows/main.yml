@@ -21,15 +21,6 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
                 components: rustfmt, clippy
-            - name: Cache Cargo registry
-              uses: actions/cache@v4
-              with:
-                path: |
-                  ~/.cargo/registry
-                  ~/.cargo/git
-                key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-                restore-keys: |
-                  ${{ runner.os }}-cargo-registry-
             - name: Cache OIDN download (Linux)
               id: cache-oidn
               uses: actions/cache@v4
@@ -63,15 +54,6 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
                 components: rustfmt, clippy
-            - name: Cache Cargo registry
-              uses: actions/cache@v4
-              with:
-                path: |
-                  ~/.cargo/registry
-                  ~/.cargo/git
-                key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-                restore-keys: |
-                  ${{ runner.os }}-cargo-registry-
             - name: Cache OIDN download (macOS)
               id: cache-oidn
               uses: actions/cache@v4
@@ -100,15 +82,6 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
                 components: rustfmt, clippy
-            - name: Cache Cargo registry
-              uses: actions/cache@v4
-              with:
-                path: |
-                  ~/.cargo/registry
-                  ~/.cargo/git
-                key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-                restore-keys: |
-                  ${{ runner.os }}-cargo-registry-
             - name: Cache OIDN download (Windows)
               id: cache-oidn
               uses: actions/cache@v4
