@@ -1,8 +1,8 @@
-use crate::sys::{
-    oidnGetBufferSize, oidnNewBuffer, oidnReadBuffer, oidnReleaseBuffer, oidnWriteBuffer,
-    OIDNBuffer,
-};
 use crate::Device;
+use crate::sys::{
+    OIDNBuffer, oidnGetBufferSize, oidnNewBuffer, oidnReadBuffer, oidnReleaseBuffer,
+    oidnWriteBuffer,
+};
 use std::mem;
 use std::sync::Arc;
 
@@ -36,8 +36,8 @@ impl Device {
     /// Raw buffer must not be invalid (e.g. destroyed, null ect.)
     ///
     /// Raw buffer must have been created by this device
-    pub unsafe fn create_buffer_from_raw(&self, buffer: OIDNBuffer) -> Buffer {
-        let size = oidnGetBufferSize(buffer) / mem::size_of::<f32>();
+    pub fn create_buffer_from_raw(&self, buffer: OIDNBuffer) -> Buffer {
+        let size = unsafe { oidnGetBufferSize(buffer) } / mem::size_of::<f32>();
         Buffer {
             buf: buffer,
             size,

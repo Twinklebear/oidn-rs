@@ -31,7 +31,7 @@ fn buffer_import_read_write() {
         eprintln!("Test skipped due to buffer creation failing");
         return;
     }
-    let mut buffer = unsafe { device.create_buffer_from_raw(raw_buffer) };
+    let mut buffer = device.create_buffer_from_raw(raw_buffer);
     buffer.write(&[1.0]).unwrap();
     assert_eq!(buffer.read(), vec![1.0]);
     let mut slice = vec![0.0];

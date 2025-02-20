@@ -8,9 +8,9 @@ const BUFFER_LEN: usize = WIDTH * HEIGHT * 3;
 
 fn main() {
     let mut input = [0.0; BUFFER_LEN];
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     for float in input.iter_mut() {
-        let rand = rng.gen();
+        let rand = rng.random();
         *float = rand;
     }
     println!("randomized:");

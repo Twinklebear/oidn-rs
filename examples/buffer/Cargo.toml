@@ -1,9 +1,0 @@
-[package]
-name = "buffer"
-version = "0.1.0"
-authors = ["Vecvec"]
-edition = "2021"
-
-[dependencies]
-oidn = { path = "../../" }
-rand = "0.8.5"
