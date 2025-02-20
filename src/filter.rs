@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, device::Device, sys::*, Error, Quality};
+use crate::{Error, Quality, buffer::Buffer, device::Device, sys::*};
 use std::mem;
 
 /// A generic ray tracing denoising filter for denoising

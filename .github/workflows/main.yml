@@ -33,6 +33,7 @@ jobs:
             - run: tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
             - run: echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
+            - run: rustup update
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
             - run: cargo test --all --all-targets
@@ -67,6 +68,7 @@ jobs:
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.arm64.macos" >> $GITHUB_ENV
             - run: echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
             - run: cp $OIDN_DIR/lib/*dylib .
+            - run: rustup update
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
     build_windows:
@@ -95,6 +97,7 @@ jobs:
               if: steps.cache-oidn.outputs.cache-hit != 'true'
               run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.windows.zip
             - run: 7z x oidn-${env:OIDN_VERSION}.x64.windows.zip -y
+            - run: rustup update
             - run: |
                 $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo build --all --all-targets

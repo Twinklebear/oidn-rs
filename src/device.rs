@@ -1,5 +1,5 @@
-use crate::sys::*;
 use crate::Error;
+use crate::sys::*;
 use std::sync::Arc;
 use std::{ffi::CStr, os::raw::c_char, ptr};
 
