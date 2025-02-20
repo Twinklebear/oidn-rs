@@ -158,7 +158,7 @@ fn main() {
         &output_img[..],
         color.width as u32,
         color.height as u32,
-        image::RGB(8),
+        image::ColorType::Rgb8,
     )
     .expect("Failed to save output image");
 }

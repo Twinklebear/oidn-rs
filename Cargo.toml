@@ -29,7 +29,7 @@ pkg-config = "0.3.31"
 
 [dev-dependencies]
 rand = "0.9.0"
-image = "0.22.5"
+image = "0.25.5"
 exr = "0.9.0"
 docopt = "1.1.1"
 rayon = "1.10.0"
