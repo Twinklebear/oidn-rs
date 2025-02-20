@@ -36,7 +36,7 @@ impl Device {
     /// Raw buffer must not be invalid (e.g. destroyed, null ect.)
     ///
     /// Raw buffer must have been created by this device
-    pub fn create_buffer_from_raw(&self, buffer: OIDNBuffer) -> Buffer {
+    pub unsafe fn create_buffer_from_raw(&self, buffer: OIDNBuffer) -> Buffer {
         let size = unsafe { oidnGetBufferSize(buffer) } / mem::size_of::<f32>();
         Buffer {
             buf: buffer,
