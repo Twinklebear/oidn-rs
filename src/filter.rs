@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, device::Device, sys::*, Error, Quality};
+use crate::{Error, Quality, buffer::Buffer, device::Device, sys::*};
 use std::mem;
 
 /// A generic ray tracing denoising filter for denoising
@@ -121,7 +121,8 @@ impl<'a> RayTracing<'a> {
     /// *world-space* or *view-space* vectors with arbitrary length, values
     /// in `[-1, 1]`.
     ///
-    /// This function is the same as [RayTracing::albedo_normal] but takes buffers instead
+    /// This function is the same as [RayTracing::albedo_normal] but takes
+    /// buffers instead
     ///
     /// Returns [None] if either buffer was not created by this device
     pub fn albedo_normal_buffer(
@@ -140,7 +141,8 @@ impl<'a> RayTracing<'a> {
     /// Set an input auxiliary buffer containing the albedo per pixel (three
     /// channels, values in `[0, 1]`).
     ///
-    /// This function is the same as [RayTracing::albedo] but takes buffers instead
+    /// This function is the same as [RayTracing::albedo] but takes buffers
+    /// instead
     ///
     /// Returns [None] if albedo buffer was not created by this device
     pub fn albedo_buffer(&mut self, albedo: Buffer) -> Option<&mut RayTracing<'a>> {

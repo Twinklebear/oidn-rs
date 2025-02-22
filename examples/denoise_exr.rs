@@ -76,7 +76,6 @@ impl EXRData {
             height,
         }
     }
-
     fn set_pixel(&mut self, x: usize, y: usize, pixel: &rgb_exr::Pixel) {
         let i = (y * self.width + x) * 3;
         self.img[i] = pixel.red.to_f32();
@@ -159,7 +158,7 @@ fn main() {
         &output_img[..],
         color.width as u32,
         color.height as u32,
-        image::RGB(8),
+        image::ColorType::Rgb8,
     )
     .expect("Failed to save output image");
 }

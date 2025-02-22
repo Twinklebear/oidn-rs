@@ -1,15 +1,22 @@
 use std::env;
 use std::path::PathBuf;
 
+use pkg_config::Config;
+
 fn main() {
     if env::var("DOCS_RS").is_err() {
-        if let Ok(e) = env::var("OIDN_DIR") {
-            let mut oidn_dir = PathBuf::from(e);
-            oidn_dir.push("lib");
-            println!("cargo:rustc-link-search=native={}", oidn_dir.display());
+        if let Ok(dir) = env::var("OIDN_DIR") {
+            let mut lib_path = PathBuf::from(dir);
+            lib_path.push("lib");
+            println!("cargo:rustc-link-search=native={}", lib_path.display());
         } else {
-            println!("cargo:error=Please set OIDN_DIR=<path to OpenImageDenoise install root>");
-            panic!("Failed to find OpenImageDenoise");
+            Config::new().probe("OpenImageDenoise").unwrap_or_else(|e| {
+                println!(
+                    "cargo:error=Could not find OpenImageDenoise via pkg-config: {}",
+                    e
+                );
+                panic!("Failed to find OpenImageDenoise");
+            });
         }
         println!("cargo:rerun-if-env-changed=OIDN_DIR");
         println!("cargo:rustc-link-lib=OpenImageDenoise");

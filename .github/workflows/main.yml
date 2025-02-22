@@ -6,19 +6,37 @@ on:
         - cron: "0 0 * * 1"
 env:
     CARGO_TERM_COLOR: always
-    OIDN_VERSION: 2.3.1
+    OIDN_VERSION: 2.3.2
 jobs:
     build_linux:
         runs-on: ubuntu-latest
+        strategy:
+          matrix:
+            rust_channel: [stable, beta, nightly]
         steps:
             - uses: actions/checkout@v4
-            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
+            - name: Set up Rust toolchain
+              uses: actions-rs/toolchain@v1
+              with:
+                toolchain: ${{ matrix.rust_channel }}
+                override: true
+                components: rustfmt, clippy
+            - name: Cache OIDN download (Linux)
+              id: cache-oidn
+              uses: actions/cache@v4
+              with:
+                path: oidn-${{ env.OIDN_VERSION }}.x86_64.linux.tar.gz
+                key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-x86_64
+            - name: Download OIDN (Linux)
+              if: steps.cache-oidn.outputs.cache-hit != 'true'
+              run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
             - run: tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
             - run: echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
+            - run: rustup update
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
-            - run: cargo test --all
+            - run: cargo test --all --all-targets
             - run: cargo doc --all --no-deps --document-private-items
               env:
                   RUSTDOCFLAGS: -Dwarnings
@@ -26,22 +44,60 @@ jobs:
               run: cargo fmt -- --check
     build_mac:
         runs-on: macos-latest
+        strategy:
+          matrix:
+            rust_channel: [stable, beta, nightly]
         steps:
             - uses: actions/checkout@v4
-            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.arm64.macos.tar.gz
+            - name: Set up Rust toolchain
+              uses: actions-rs/toolchain@v1
+              with:
+                toolchain: ${{ matrix.rust_channel }}
+                override: true
+                components: rustfmt, clippy
+            - name: Cache OIDN download (macOS)
+              id: cache-oidn
+              uses: actions/cache@v4
+              with:
+                path: oidn-${{ env.OIDN_VERSION }}.arm64.macos.tar.gz
+                key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-arm64
+            - name: Download OIDN (macOS)
+              if: steps.cache-oidn.outputs.cache-hit != 'true'
+              run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.arm64.macos.tar.gz
             - run: tar -xf oidn-${OIDN_VERSION}.arm64.macos.tar.gz
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.arm64.macos" >> $GITHUB_ENV
             - run: echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
             - run: cp $OIDN_DIR/lib/*dylib .
+            - run: rustup update
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
     build_windows:
         runs-on: windows-latest
+        strategy:
+          matrix:
+            rust_channel: [stable, beta, nightly]
         steps:
             - uses: actions/checkout@v4
-            - run: choco install wget
-            - run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.windows.zip
+            - name: Set up Rust toolchain
+              uses: actions-rs/toolchain@v1
+              with:
+                toolchain: ${{ matrix.rust_channel }}
+                override: true
+                components: rustfmt, clippy
+            - name: Cache OIDN download (Windows)
+              id: cache-oidn
+              uses: actions/cache@v4
+              with:
+                path: oidn-${{ env.OIDN_VERSION }}.x64.windows.zip
+                key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-x64-windows
+            - name: Install wget (Windows)
+              if: steps.cache-oidn.outputs.cache-hit != 'true'
+              run: choco install wget
+            - name: Download OIDN (Windows)
+              if: steps.cache-oidn.outputs.cache-hit != 'true'
+              run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.windows.zip
             - run: 7z x oidn-${env:OIDN_VERSION}.x64.windows.zip -y
+            - run: rustup update
             - run: |
                 $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo build --all --all-targets

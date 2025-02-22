@@ -9,7 +9,7 @@ fn main() {
     let args: Vec<_> = env::args().collect();
     let input = image::open(&args[1][..])
         .expect("Failed to open input image")
-        .to_rgb();
+        .to_rgb8();
 
     // OIDN works on float images only, so convert this to a floating point image
     let mut input_img = vec![0.0f32; (3 * input.width() * input.height()) as usize];
@@ -56,7 +56,7 @@ fn main() {
         &output_img[..],
         input.width(),
         input.height(),
-        image::RGB(8),
+        image::ColorType::Rgb8,
     )
     .expect("Failed to save output image");
 }
