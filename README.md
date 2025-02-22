@@ -44,8 +44,8 @@ fn main() {
 }
 ```
 
-The [simple](examples/simple) example loads a JPG, denoises it, and saves the
-output image to a JPG. The [denoise_exr](examples/denoise_exr) example loads an
+The [simple](examples/simple.rs) example loads a JPG, denoises it, and saves the
+output image to a JPG. The [denoise_exr](examples/denoise_exr.rs) example loads an
 HDR color EXR file, denoises it and saves the tonemapped result out to a JPG.
 The `denoise_exr` app can also take albedo and normal data through additional
 EXR files.
