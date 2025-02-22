@@ -4,6 +4,7 @@
 [![CI](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml/badge.svg)](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml)
 
 Rust bindings to Intel’s [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
+Crate version numbers track the OIDN version they correspond to.
 
 ## Documentation
 
