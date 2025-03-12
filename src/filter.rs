@@ -258,11 +258,7 @@ impl<'a> RayTracing<'a> {
         Ok(())
     }
 
-    fn execute_filter_buffer(
-        &self,
-        color: Option<&Buffer>,
-        output: &Buffer,
-    ) -> Result<(), Error> {
+    fn execute_filter_buffer(&self, color: Option<&Buffer>, output: &Buffer) -> Result<(), Error> {
         if let Some(alb) = &self.albedo {
             if alb.size != self.img_dims.2 {
                 return Err(Error::InvalidImageDimensions);
