@@ -242,11 +242,11 @@ impl<'a> RayTracing<'a> {
             None => None,
             Some(color) => Some(self.device.create_buffer(color).ok_or(Error::OutOfMemory)?),
         };
-        let mut out = self
+        let out = self
             .device
             .create_buffer(output)
             .ok_or(Error::OutOfMemory)?;
-        self.execute_filter_buffer(color.as_ref(), &mut out)?;
+        self.execute_filter_buffer(color.as_ref(), &out)?;
         unsafe {
             oidnReadBuffer(
                 out.buf,

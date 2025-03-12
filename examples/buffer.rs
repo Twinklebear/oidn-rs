@@ -30,10 +30,10 @@ fn main() {
     let device = oidn::Device::new();
     let mut filter = oidn::filter::RayTracing::new(&device);
     let buffer = device.create_buffer(&input).unwrap();
-    let mut output_buffer = device.create_buffer(&[0.0; BUFFER_LEN]).unwrap();
+    let output_buffer = device.create_buffer(&[0.0; BUFFER_LEN]).unwrap();
     filter
         .image_dimensions(WIDTH, HEIGHT)
-        .filter_buffer(&buffer, &mut output_buffer)
+        .filter_buffer(&buffer, &output_buffer)
         .unwrap();
     let slice = output_buffer.read();
     println!();
