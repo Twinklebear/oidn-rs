@@ -105,3 +105,5 @@ impl Drop for Buffer {
         unsafe { oidnReleaseBuffer(self.buf) }
     }
 }
+
+unsafe impl Send for Buffer {}
