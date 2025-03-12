@@ -225,7 +225,7 @@ impl<'a> RayTracing<'a> {
         self.execute_filter(Some(color), output)
     }
 
-    pub fn filter_buffer(&self, color: &Buffer, output: &mut Buffer) -> Result<(), Error> {
+    pub fn filter_buffer(&self, color: &Buffer, output: &Buffer) -> Result<(), Error> {
         self.execute_filter_buffer(Some(color), output)
     }
 
@@ -233,7 +233,7 @@ impl<'a> RayTracing<'a> {
         self.execute_filter(None, color)
     }
 
-    pub fn filter_in_place_buffer(&self, color: &mut Buffer) -> Result<(), Error> {
+    pub fn filter_in_place_buffer(&self, color: &Buffer) -> Result<(), Error> {
         self.execute_filter_buffer(None, color)
     }
 
@@ -261,7 +261,7 @@ impl<'a> RayTracing<'a> {
     fn execute_filter_buffer(
         &self,
         color: Option<&Buffer>,
-        output: &mut Buffer,
+        output: &Buffer,
     ) -> Result<(), Error> {
         if let Some(alb) = &self.albedo {
             if alb.size != self.img_dims.2 {
