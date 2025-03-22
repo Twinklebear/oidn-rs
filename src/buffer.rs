@@ -52,7 +52,7 @@ impl Device {
 
 impl Buffer {
     /// Writes to the buffer, returns [None] if the sizes mismatch
-    pub fn write(&mut self, contents: &[f32]) -> Option<()> {
+    pub fn write(&self, contents: &[f32]) -> Option<()> {
         if self.size != contents.len() {
             None
         } else {
@@ -65,7 +65,7 @@ impl Buffer {
     }
 
     /// Reads from the buffer to the array, returns [None] if the sizes mismatch
-    pub fn read_to_slice(&mut self, contents: &mut [f32]) -> Option<()> {
+    pub fn read_to_slice(&self, contents: &mut [f32]) -> Option<()> {
         if self.size != contents.len() {
             None
         } else {
@@ -78,7 +78,7 @@ impl Buffer {
     }
 
     /// Reads from the buffer
-    pub fn read(&mut self) -> Vec<f32> {
+    pub fn read(&self) -> Vec<f32> {
         let contents = vec![0.0; self.size];
         unsafe {
             oidnReadBuffer(
@@ -105,3 +105,5 @@ impl Drop for Buffer {
         unsafe { oidnReleaseBuffer(self.buf) }
     }
 }
+
+unsafe impl Send for Buffer {}

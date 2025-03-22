@@ -8,6 +8,9 @@ use std::{ffi::CStr, os::raw::c_char, ptr};
 /// Open Image Denoise supports a device concept, which allows different
 /// components of the application to use the API without interfering with each
 /// other.
+///
+/// While all API calls on a device are thread-safe, they may be serialized.
+/// Therefor, it is recommended to call from the same thread.
 pub struct Device(pub(crate) OIDNDevice, pub(crate) Arc<u8>);
 
 impl Device {

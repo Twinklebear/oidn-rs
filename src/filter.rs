@@ -225,7 +225,7 @@ impl<'a> RayTracing<'a> {
         self.execute_filter(Some(color), output)
     }
 
-    pub fn filter_buffer(&self, color: &Buffer, output: &mut Buffer) -> Result<(), Error> {
+    pub fn filter_buffer(&self, color: &Buffer, output: &Buffer) -> Result<(), Error> {
         self.execute_filter_buffer(Some(color), output)
     }
 
@@ -233,7 +233,7 @@ impl<'a> RayTracing<'a> {
         self.execute_filter(None, color)
     }
 
-    pub fn filter_in_place_buffer(&self, color: &mut Buffer) -> Result<(), Error> {
+    pub fn filter_in_place_buffer(&self, color: &Buffer) -> Result<(), Error> {
         self.execute_filter_buffer(None, color)
     }
 
@@ -242,11 +242,11 @@ impl<'a> RayTracing<'a> {
             None => None,
             Some(color) => Some(self.device.create_buffer(color).ok_or(Error::OutOfMemory)?),
         };
-        let mut out = self
+        let out = self
             .device
             .create_buffer(output)
             .ok_or(Error::OutOfMemory)?;
-        self.execute_filter_buffer(color.as_ref(), &mut out)?;
+        self.execute_filter_buffer(color.as_ref(), &out)?;
         unsafe {
             oidnReadBuffer(
                 out.buf,
@@ -258,11 +258,7 @@ impl<'a> RayTracing<'a> {
         Ok(())
     }
 
-    fn execute_filter_buffer(
-        &self,
-        color: Option<&Buffer>,
-        output: &mut Buffer,
-    ) -> Result<(), Error> {
+    fn execute_filter_buffer(&self, color: Option<&Buffer>, output: &Buffer) -> Result<(), Error> {
         if let Some(alb) = &self.albedo {
             if alb.size != self.img_dims.2 {
                 return Err(Error::InvalidImageDimensions);
