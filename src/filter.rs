@@ -81,7 +81,7 @@ impl<'a> RayTracing<'a> {
             }
         }) {
             None => {
-                self.albedo = Some(self.device.create_buffer(normal).unwrap());
+                self.normal = Some(self.device.create_buffer(normal).unwrap());
             }
             Some(buf) => {
                 buf.write(normal)
