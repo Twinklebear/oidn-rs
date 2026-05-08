@@ -41,3 +41,20 @@ fn buffer_import_read_write() {
         panic!("test failed with {err:?}: {str}")
     }
 }
+
+#[cfg(test)]
+#[test]
+fn raw_buffer_byte_size_preserves_non_f32_sizes() {
+    let device = crate::Device::new();
+    let raw_buffer = unsafe { crate::sys::oidnNewBuffer(device.raw(), 1) };
+    if raw_buffer.is_null() {
+        eprintln!("Test skipped due to buffer creation failing");
+        return;
+    }
+    let buffer = unsafe { device.create_buffer_from_raw(raw_buffer) };
+    assert_eq!(buffer.byte_size(), 1);
+    assert_eq!(buffer.size(), 0);
+    if let Err((err, str)) = device.get_error() {
+        panic!("test failed with {err:?}: {str}")
+    }
+}

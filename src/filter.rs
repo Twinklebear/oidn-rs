@@ -258,14 +258,21 @@ impl<'a> RayTracing<'a> {
     /// Starts filtering buffer-backed images asynchronously.
     ///
     /// The returned guard keeps the filter and buffers borrowed until the
-    /// device has been synchronized. Dropping the guard also synchronizes the
-    /// device, so this remains safe even when a future is cancelled.
-    pub fn filter_buffer_async<'filter>(
+    /// device has been synchronized. Dropping the guard synchronizes the
+    /// device as a convenience, but leaking it prevents synchronization.
+    ///
+    /// # Safety
+    ///
+    /// The returned guard must not be leaked with mechanisms such as
+    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be awaited,
+    /// waited, or dropped before the filter or buffers are accessed, mutated,
+    /// or released.
+    pub unsafe fn filter_buffer_async<'filter>(
         &'filter mut self,
         color: &'filter Buffer,
         output: &'filter mut Buffer,
     ) -> Result<PendingFilter<'filter, 'a>, Error> {
-        self.execute_filter_buffer_async(Some(color), output)
+        unsafe { self.execute_filter_buffer_async(Some(color), output) }
     }
 
     pub fn filter_in_place(&self, color: &mut [f32]) -> Result<(), Error> {
@@ -279,13 +286,20 @@ impl<'a> RayTracing<'a> {
     /// Starts in-place filtering on a buffer asynchronously.
     ///
     /// The returned guard keeps the filter and buffer borrowed until the device
-    /// has been synchronized. Dropping the guard also synchronizes the device,
-    /// so this remains safe even when a future is cancelled.
-    pub fn filter_in_place_buffer_async<'filter>(
+    /// has been synchronized. Dropping the guard synchronizes the device as a
+    /// convenience, but leaking it prevents synchronization.
+    ///
+    /// # Safety
+    ///
+    /// The returned guard must not be leaked with mechanisms such as
+    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be awaited,
+    /// waited, or dropped before the filter or buffer are accessed, mutated, or
+    /// released.
+    pub unsafe fn filter_in_place_buffer_async<'filter>(
         &'filter mut self,
         color: &'filter mut Buffer,
     ) -> Result<PendingFilter<'filter, 'a>, Error> {
-        self.execute_filter_buffer_async(None, color)
+        unsafe { self.execute_filter_buffer_async(None, color) }
     }
 
     fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), Error> {
@@ -317,7 +331,7 @@ impl<'a> RayTracing<'a> {
         Ok(())
     }
 
-    fn execute_filter_buffer_async<'filter>(
+    unsafe fn execute_filter_buffer_async<'filter>(
         &'filter mut self,
         color: Option<&'filter Buffer>,
         output: &'filter mut Buffer,

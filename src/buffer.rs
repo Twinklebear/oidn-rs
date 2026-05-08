@@ -14,6 +14,7 @@ use std::task::{Context, Poll};
 pub struct Buffer {
     pub(crate) buf: OIDNBuffer,
     pub(crate) size: usize,
+    pub(crate) byte_size: usize,
     pub(crate) device_arc: Arc<u8>,
 }
 
@@ -34,6 +35,7 @@ impl Device {
         Some(Buffer {
             buf: buffer,
             size: contents.len(),
+            byte_size,
             device_arc: self.1.clone(),
         })
     }
@@ -52,6 +54,7 @@ impl Device {
             Some(Buffer {
                 buf: buffer,
                 size: len,
+                byte_size,
                 device_arc: self.1.clone(),
             })
         }
@@ -62,10 +65,12 @@ impl Device {
     ///
     /// Raw buffer must have been created by this device
     pub unsafe fn create_buffer_from_raw(&self, buffer: OIDNBuffer) -> Buffer {
-        let size = unsafe { oidnGetBufferSize(buffer) } / mem::size_of::<f32>();
+        let byte_size = unsafe { oidnGetBufferSize(buffer) };
+        let size = byte_size / mem::size_of::<f32>();
         Buffer {
             buf: buffer,
             size,
+            byte_size,
             device_arc: self.1.clone(),
         }
     }
@@ -77,9 +82,16 @@ impl Device {
     /// Starts an asynchronous write to an OIDN buffer.
     ///
     /// The returned guard keeps the buffer and source slice borrowed until the
-    /// device has been synchronized. Dropping the guard also synchronizes the
-    /// device, so this remains safe even when a future is cancelled.
-    pub fn write_buffer_async<'a>(
+    /// device has been synchronized. Dropping the guard synchronizes the
+    /// device as a convenience, but leaking it prevents synchronization.
+    ///
+    /// # Safety
+    ///
+    /// The returned guard must not be leaked with mechanisms such as
+    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be awaited,
+    /// waited, or dropped before the source slice or buffer are accessed,
+    /// mutated, or released.
+    pub unsafe fn write_buffer_async<'a>(
         &'a self,
         buf: &'a mut Buffer,
         contents: &'a [f32],
@@ -106,9 +118,16 @@ impl Device {
     /// Starts an asynchronous read from an OIDN buffer.
     ///
     /// The returned guard keeps the buffer and destination slice borrowed until
-    /// the device has been synchronized. Dropping the guard also synchronizes
-    /// the device, so this remains safe even when a future is cancelled.
-    pub fn read_buffer_async<'a>(
+    /// the device has been synchronized. Dropping the guard synchronizes the
+    /// device as a convenience, but leaking it prevents synchronization.
+    ///
+    /// # Safety
+    ///
+    /// The returned guard must not be leaked with mechanisms such as
+    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be awaited,
+    /// waited, or dropped before the destination slice or buffer are accessed,
+    /// mutated, or released.
+    pub unsafe fn read_buffer_async<'a>(
         &'a self,
         buf: &'a mut Buffer,
         contents: &'a mut [f32],
@@ -181,7 +200,7 @@ impl Buffer {
 
     /// Returns the size of the buffer in bytes.
     pub fn byte_size(&self) -> usize {
-        self.size * mem::size_of::<f32>()
+        self.byte_size
     }
 
     /// Returns the storage mode used by the buffer.
@@ -212,6 +231,7 @@ impl Clone for Buffer {
         Self {
             buf: self.buf,
             size: self.size,
+            byte_size: self.byte_size,
             device_arc: self.device_arc.clone(),
         }
     }
