@@ -79,6 +79,13 @@ impl Device {
             Err(((err as u32).try_into().unwrap(), msg))
         }
     }
+
+    /// Waits until all asynchronous operations on the device have completed.
+    pub fn sync(&self) {
+        unsafe {
+            oidnSyncDevice(self.0);
+        }
+    }
 }
 
 impl Drop for Device {

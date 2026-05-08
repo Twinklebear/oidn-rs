@@ -1,5 +1,8 @@
 use crate::{Error, Quality, buffer::Buffer, device::Device, sys::*};
+use std::future::Future;
 use std::mem;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
@@ -13,6 +16,7 @@ pub struct RayTracing<'a> {
     input_scale: f32,
     srgb: bool,
     clean_aux: bool,
+    weights: Option<Vec<u8>>,
     img_dims: (usize, usize, usize),
     filter_quality: OIDNQuality,
 }
@@ -32,6 +36,7 @@ impl<'a> RayTracing<'a> {
             input_scale: f32::NAN,
             srgb: false,
             clean_aux: false,
+            weights: None,
             img_dims: (0, 0, 0),
             filter_quality: 0,
         }
@@ -81,7 +86,7 @@ impl<'a> RayTracing<'a> {
             }
         }) {
             None => {
-                self.albedo = Some(self.device.create_buffer(normal).unwrap());
+                self.normal = Some(self.device.create_buffer(normal).unwrap());
             }
             Some(buf) => {
                 buf.write(normal)
@@ -127,9 +132,11 @@ impl<'a> RayTracing<'a> {
     /// Returns [None] if either buffer was not created by this device
     pub fn albedo_normal_buffer(
         &mut self,
-        albedo: Buffer,
-        normal: Buffer,
+        albedo: impl Into<Buffer>,
+        normal: impl Into<Buffer>,
     ) -> Option<&mut RayTracing<'a>> {
+        let albedo = albedo.into();
+        let normal = normal.into();
         if !self.device.same_device_as_buf(&albedo) || !self.device.same_device_as_buf(&normal) {
             return None;
         }
@@ -145,7 +152,8 @@ impl<'a> RayTracing<'a> {
     /// instead
     ///
     /// Returns [None] if albedo buffer was not created by this device
-    pub fn albedo_buffer(&mut self, albedo: Buffer) -> Option<&mut RayTracing<'a>> {
+    pub fn albedo_buffer(&mut self, albedo: impl Into<Buffer>) -> Option<&mut RayTracing<'a>> {
+        let albedo = albedo.into();
         if !self.device.same_device_as_buf(&albedo) {
             return None;
         }
@@ -197,6 +205,24 @@ impl<'a> RayTracing<'a> {
         self
     }
 
+    /// Set custom trained model weights for the RT filter.
+    ///
+    /// The bytes are copied and kept alive by the filter until new weights are
+    /// supplied or [RayTracing::clear_weights] is called.
+    pub fn weights(&mut self, weights: &[u8]) -> &mut RayTracing<'a> {
+        self.weights = Some(weights.to_vec());
+        self
+    }
+
+    /// Clear any previously supplied custom model weights.
+    pub fn clear_weights(&mut self) -> &mut RayTracing<'a> {
+        self.weights = None;
+        unsafe {
+            oidnUnsetFilterData(self.handle, b"weights\0" as *const _ as _);
+        }
+        self
+    }
+
     /// sets the dimensions of the denoising image, if new width * new height
     /// does not equal old width * old height
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
@@ -229,12 +255,37 @@ impl<'a> RayTracing<'a> {
         self.execute_filter_buffer(Some(color), output)
     }
 
+    /// Starts filtering buffer-backed images asynchronously.
+    ///
+    /// The returned guard keeps the filter and buffers borrowed until the
+    /// device has been synchronized. Dropping the guard also synchronizes the
+    /// device, so this remains safe even when a future is cancelled.
+    pub fn filter_buffer_async<'filter>(
+        &'filter mut self,
+        color: &'filter Buffer,
+        output: &'filter mut Buffer,
+    ) -> Result<PendingFilter<'filter, 'a>, Error> {
+        self.execute_filter_buffer_async(Some(color), output)
+    }
+
     pub fn filter_in_place(&self, color: &mut [f32]) -> Result<(), Error> {
         self.execute_filter(None, color)
     }
 
     pub fn filter_in_place_buffer(&self, color: &mut Buffer) -> Result<(), Error> {
         self.execute_filter_buffer(None, color)
+    }
+
+    /// Starts in-place filtering on a buffer asynchronously.
+    ///
+    /// The returned guard keeps the filter and buffer borrowed until the device
+    /// has been synchronized. Dropping the guard also synchronizes the device,
+    /// so this remains safe even when a future is cancelled.
+    pub fn filter_in_place_buffer_async<'filter>(
+        &'filter mut self,
+        color: &'filter mut Buffer,
+    ) -> Result<PendingFilter<'filter, 'a>, Error> {
+        self.execute_filter_buffer_async(None, color)
     }
 
     fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), Error> {
@@ -259,6 +310,35 @@ impl<'a> RayTracing<'a> {
     }
 
     fn execute_filter_buffer(
+        &self,
+        color: Option<&Buffer>,
+        output: &mut Buffer,
+    ) -> Result<(), Error> {
+        self.configure_filter_buffer(color, output)?;
+        unsafe {
+            oidnExecuteFilter(self.handle);
+        }
+        Ok(())
+    }
+
+    fn execute_filter_buffer_async<'filter>(
+        &'filter mut self,
+        color: Option<&'filter Buffer>,
+        output: &'filter mut Buffer,
+    ) -> Result<PendingFilter<'filter, 'a>, Error> {
+        self.configure_filter_buffer(color, output)?;
+        unsafe {
+            oidnExecuteFilterAsync(self.handle);
+        }
+        Ok(PendingFilter {
+            filter: self,
+            _color: color,
+            _output: output,
+            complete: false,
+        })
+    }
+
+    fn configure_filter_buffer(
         &self,
         color: Option<&Buffer>,
         output: &mut Buffer,
@@ -360,6 +440,14 @@ impl<'a> RayTracing<'a> {
             );
             oidnSetFilterBool(self.handle, b"srgb\0" as *const _ as _, self.srgb);
             oidnSetFilterBool(self.handle, b"clean_aux\0" as *const _ as _, self.clean_aux);
+            if let Some(weights) = &self.weights {
+                oidnSetSharedFilterData(
+                    self.handle,
+                    b"weights\0" as *const _ as _,
+                    weights.as_ptr() as *mut _,
+                    weights.len(),
+                );
+            }
 
             oidnSetFilterInt(
                 self.handle,
@@ -368,7 +456,6 @@ impl<'a> RayTracing<'a> {
             );
 
             oidnCommitFilter(self.handle);
-            oidnExecuteFilter(self.handle);
         }
         Ok(())
     }
@@ -384,3 +471,38 @@ impl Drop for RayTracing<'_> {
 }
 
 unsafe impl Send for RayTracing<'_> {}
+
+pub struct PendingFilter<'filter, 'device> {
+    filter: &'filter mut RayTracing<'device>,
+    _color: Option<&'filter Buffer>,
+    _output: &'filter mut Buffer,
+    complete: bool,
+}
+
+impl PendingFilter<'_, '_> {
+    pub fn wait(mut self) {
+        self.finish();
+    }
+
+    fn finish(&mut self) {
+        if !self.complete {
+            self.filter.device.sync();
+            self.complete = true;
+        }
+    }
+}
+
+impl Future for PendingFilter<'_, '_> {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.finish();
+        Poll::Ready(())
+    }
+}
+
+impl Drop for PendingFilter<'_, '_> {
+    fn drop(&mut self) {
+        self.finish();
+    }
+}
