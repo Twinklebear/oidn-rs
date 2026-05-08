@@ -227,21 +227,19 @@ impl<'a> RayTracing<'a> {
     /// does not equal old width * old height
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
-        match &self.albedo {
-            None => {}
-            Some(buffer) => {
-                if buffer.size != buffer_dims {
-                    self.albedo = None;
-                }
-            }
+        if self
+            .albedo
+            .as_ref()
+            .is_some_and(|buffer| buffer.size != buffer_dims)
+        {
+            self.albedo = None;
         }
-        match &self.normal {
-            None => {}
-            Some(buffer) => {
-                if buffer.size != buffer_dims {
-                    self.normal = None;
-                }
-            }
+        if self
+            .normal
+            .as_ref()
+            .is_some_and(|buffer| buffer.size != buffer_dims)
+        {
+            self.normal = None;
         }
         self.img_dims = (width, height, buffer_dims);
         self
