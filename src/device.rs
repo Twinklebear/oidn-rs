@@ -79,7 +79,7 @@ impl Device {
             Ok(())
         } else {
             let msg = unsafe { CStr::from_ptr(err_msg).to_string_lossy().to_string() };
-            Err(((err as u32).try_into().unwrap(), msg))
+            Err((err.try_into().unwrap(), msg))
         }
     }
 
@@ -107,6 +107,6 @@ impl Default for Device {
 
 unsafe impl Send for Device {}
 
-fn get_handle(device_type: u32) -> *mut OIDNDeviceImpl {
+fn get_handle(device_type: OIDNDeviceType) -> *mut OIDNDeviceImpl {
     unsafe { oidnNewDevice(device_type) }
 }

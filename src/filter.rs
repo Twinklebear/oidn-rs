@@ -460,7 +460,7 @@ impl<'a> RayTracing<'a> {
             oidnSetFilterInt(
                 self.handle,
                 b"quality\0" as *const _ as _,
-                self.filter_quality as i32,
+                self.filter_quality,
             );
 
             oidnCommitFilter(self.handle);
