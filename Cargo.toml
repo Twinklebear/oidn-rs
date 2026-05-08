@@ -1,6 +1,6 @@
 [package]
 name = "oidn"
-version = "2.3.2"
+version = "2.4.0"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Will Usher <will@willusher.io>"]
