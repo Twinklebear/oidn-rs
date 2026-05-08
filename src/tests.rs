@@ -4,7 +4,7 @@ use std::mem;
 #[test]
 fn buffer_read_write() {
     let device = crate::Device::new();
-    let mut buffer = match device.create_buffer(&[0.0]) {
+    let buffer = match device.create_buffer(&[0.0]) {
         Some(buffer) => buffer,
         // resources failing to be created is not the fault of this library
         None => {
@@ -31,7 +31,7 @@ fn buffer_import_read_write() {
         eprintln!("Test skipped due to buffer creation failing");
         return;
     }
-    let mut buffer = unsafe { device.create_buffer_from_raw(raw_buffer) };
+    let buffer = unsafe { device.create_buffer_from_raw(raw_buffer) };
     buffer.write(&[1.0]).unwrap();
     assert_eq!(buffer.read(), vec![1.0]);
     let mut slice = vec![0.0];
