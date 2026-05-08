@@ -17,9 +17,14 @@ exclude = [
     "*.jpg",
     ".gitignore",
     "examples/*",
-    "scripts/*",
+    "xtask/*",
 ]
 links = "OpenImageDenoise"
+
+[workspace]
+members = [".", "xtask"]
+default-members = ["."]
+resolver = "3"
 
 [features]
 default = []

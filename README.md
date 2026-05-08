@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/oidn.svg)](https://crates.io/crates/oidn)
 [![CI](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml/badge.svg)](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml)
 
-Rust bindings to Intel’s [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
+Rust bindings to Intel's [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
 Crate version numbers track the OIDN version they correspond to.
 
 ## Documentation
@@ -31,6 +31,26 @@ OIDN libraries, so applications that redistribute binaries must also ship the
 runtime libraries from the bundled package's `lib` or `bin` directory. On
 Windows, the build script also copies the bundled DLLs into the active Cargo
 target output directories for local `cargo run`, examples, and tests.
+
+## Development tasks
+
+Repository maintenance commands live in the Rust `xtask` tool instead of
+platform-specific shell scripts:
+
+```bash
+cargo run -p xtask -- build-examples
+cargo run -p xtask -- build-test
+cargo run -p xtask -- generate-sys-bindings
+```
+
+`build-test` uses `OIDN_DIR` when it is set. Otherwise it looks for an
+extracted `oidn-<version>.<platform>` package in the repository root and sets
+the host runtime library path before running Cargo. The binding generator
+defaults to `src/sys.rs` and finds `oidn.h` from `OIDN_HEADER`, `OIDN_DIR`,
+`OIDN_BUNDLED_DIR`, an extracted OIDN package in the repository root, or the
+bundled package under `target`. Explicit header and output paths can also be
+passed to `generate-sys-bindings`. The binding generator expects `bindgen` and
+a usable `libclang` installation to be available.
 
 ## Example
 
