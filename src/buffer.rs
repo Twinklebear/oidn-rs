@@ -4,12 +4,9 @@ use crate::sys::{
     oidnRetainBuffer, oidnWriteBuffer, oidnWriteBufferAsync,
 };
 use crate::{Device, Storage};
-use std::future::Future;
 use std::mem;
 use std::os::raw::c_void;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 pub struct Buffer {
     pub(crate) buf: OIDNBuffer,
@@ -88,9 +85,9 @@ impl Device {
     /// # Safety
     ///
     /// The returned guard must not be leaked with mechanisms such as
-    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be awaited,
-    /// waited, or dropped before the source slice or buffer are accessed,
-    /// mutated, or released.
+    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be waited
+    /// or dropped before the source slice or buffer are accessed, mutated, or
+    /// released.
     pub unsafe fn write_buffer_async<'a>(
         &'a self,
         buf: &'a mut Buffer,
@@ -124,9 +121,9 @@ impl Device {
     /// # Safety
     ///
     /// The returned guard must not be leaked with mechanisms such as
-    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be awaited,
-    /// waited, or dropped before the destination slice or buffer are accessed,
-    /// mutated, or released.
+    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be waited
+    /// or dropped before the destination slice or buffer are accessed, mutated,
+    /// or released.
     pub unsafe fn read_buffer_async<'a>(
         &'a self,
         buf: &'a mut Buffer,
@@ -249,6 +246,11 @@ impl Drop for Buffer {
     }
 }
 
+/// Completion guard for an asynchronous OIDN buffer write.
+///
+/// Calling [`PendingBufferWrite::wait`] or dropping this guard blocks until
+/// [`Device::sync`] completes.
+#[must_use = "dropping the guard blocks to synchronize; call wait() explicitly when possible"]
 pub struct PendingBufferWrite<'a> {
     device: &'a Device,
     _buffer: &'a mut Buffer,
@@ -257,6 +259,7 @@ pub struct PendingBufferWrite<'a> {
 }
 
 impl PendingBufferWrite<'_> {
+    /// Blocks until the asynchronous write has completed.
     pub fn wait(mut self) {
         self.finish();
     }
@@ -266,15 +269,6 @@ impl PendingBufferWrite<'_> {
             self.device.sync();
             self.complete = true;
         }
-    }
-}
-
-impl Future for PendingBufferWrite<'_> {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.finish();
-        Poll::Ready(())
     }
 }
 
@@ -284,6 +278,11 @@ impl Drop for PendingBufferWrite<'_> {
     }
 }
 
+/// Completion guard for an asynchronous OIDN buffer read.
+///
+/// Calling [`PendingBufferRead::wait`] or dropping this guard blocks until
+/// [`Device::sync`] completes.
+#[must_use = "dropping the guard blocks to synchronize; call wait() explicitly when possible"]
 pub struct PendingBufferRead<'a> {
     device: &'a Device,
     _buffer: &'a mut Buffer,
@@ -292,6 +291,7 @@ pub struct PendingBufferRead<'a> {
 }
 
 impl PendingBufferRead<'_> {
+    /// Blocks until the asynchronous read has completed.
     pub fn wait(mut self) {
         self.finish();
     }
@@ -301,15 +301,6 @@ impl PendingBufferRead<'_> {
             self.device.sync();
             self.complete = true;
         }
-    }
-}
-
-impl Future for PendingBufferRead<'_> {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.finish();
-        Poll::Ready(())
     }
 }
 

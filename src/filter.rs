@@ -1,8 +1,5 @@
 use crate::{Error, Quality, buffer::Buffer, device::Device, sys::*};
-use std::future::Future;
 use std::mem;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
@@ -262,9 +259,9 @@ impl<'a> RayTracing<'a> {
     /// # Safety
     ///
     /// The returned guard must not be leaked with mechanisms such as
-    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be awaited,
-    /// waited, or dropped before the filter or buffers are accessed, mutated,
-    /// or released.
+    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be waited
+    /// or dropped before the filter or buffers are accessed, mutated, or
+    /// released.
     pub unsafe fn filter_buffer_async<'filter>(
         &'filter mut self,
         color: &'filter Buffer,
@@ -290,8 +287,8 @@ impl<'a> RayTracing<'a> {
     /// # Safety
     ///
     /// The returned guard must not be leaked with mechanisms such as
-    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be awaited,
-    /// waited, or dropped before the filter or buffer are accessed, mutated, or
+    /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be waited
+    /// or dropped before the filter or buffer are accessed, mutated, or
     /// released.
     pub unsafe fn filter_in_place_buffer_async<'filter>(
         &'filter mut self,
@@ -480,6 +477,11 @@ impl Drop for RayTracing<'_> {
 
 unsafe impl Send for RayTracing<'_> {}
 
+/// Completion guard for an asynchronous OIDN filter execution.
+///
+/// Calling [`PendingFilter::wait`] or dropping this guard blocks until
+/// [`Device::sync`] completes.
+#[must_use = "dropping the guard blocks to synchronize; call wait() explicitly when possible"]
 pub struct PendingFilter<'filter, 'device> {
     filter: &'filter mut RayTracing<'device>,
     _color: Option<&'filter Buffer>,
@@ -488,6 +490,7 @@ pub struct PendingFilter<'filter, 'device> {
 }
 
 impl PendingFilter<'_, '_> {
+    /// Blocks until the asynchronous filter execution has completed.
     pub fn wait(mut self) {
         self.finish();
     }
@@ -497,15 +500,6 @@ impl PendingFilter<'_, '_> {
             self.filter.device.sync();
             self.complete = true;
         }
-    }
-}
-
-impl Future for PendingFilter<'_, '_> {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.finish();
-        Poll::Ready(())
     }
 }
 
