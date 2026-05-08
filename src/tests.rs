@@ -3,7 +3,7 @@ use std::mem;
 #[cfg(test)]
 #[test]
 fn buffer_read_write() {
-    let device = crate::Device::new();
+    let device = crate::Device::cpu();
     let buffer = match device.create_buffer(&[0.0]) {
         Some(buffer) => buffer,
         // resources failing to be created is not the fault of this library
@@ -25,7 +25,7 @@ fn buffer_read_write() {
 #[cfg(test)]
 #[test]
 fn buffer_import_read_write() {
-    let device = crate::Device::new();
+    let device = crate::Device::cpu();
     let raw_buffer = unsafe { crate::sys::oidnNewBuffer(device.raw(), mem::size_of::<f32>()) };
     if raw_buffer.is_null() {
         eprintln!("Test skipped due to buffer creation failing");
@@ -45,7 +45,7 @@ fn buffer_import_read_write() {
 #[cfg(test)]
 #[test]
 fn raw_buffer_byte_size_preserves_non_f32_sizes() {
-    let device = crate::Device::new();
+    let device = crate::Device::cpu();
     let raw_buffer = unsafe { crate::sys::oidnNewBuffer(device.raw(), 1) };
     if raw_buffer.is_null() {
         eprintln!("Test skipped due to buffer creation failing");
