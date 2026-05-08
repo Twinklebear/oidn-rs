@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 
 #[cfg(not(feature = "bundled"))]
 use pkg_config::Config;
+#[cfg(feature = "bundled")]
+use sha2::{Digest, Sha256};
 
 fn main() {
     if env::var("DOCS_RS").is_ok() {
@@ -77,9 +79,11 @@ fn link_bundled_lib_dir(
     install_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rustc-link-search=native={}", lib_path.display());
-    add_runtime_search_path(lib_path);
-    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        copy_windows_runtime_libraries(install_dir)?;
+    add_relative_runtime_search_path();
+    match env::var("CARGO_CFG_TARGET_OS").as_deref() {
+        Ok("windows") => copy_runtime_libraries(&install_dir.join("bin"))?,
+        Ok("linux") | Ok("macos") => copy_runtime_libraries(lib_path)?,
+        _ => {}
     }
     Ok(())
 }
@@ -135,6 +139,7 @@ struct BundledPackage {
     archive_name: String,
     install_dir: String,
     archive_kind: ArchiveKind,
+    expected_sha256: &'static str,
 }
 
 #[cfg(feature = "bundled")]
@@ -144,10 +149,26 @@ impl BundledPackage {
         let os = env::var("CARGO_CFG_TARGET_OS")?;
         let arch = env::var("CARGO_CFG_TARGET_ARCH")?;
         let platform = match (os.as_str(), arch.as_str()) {
-            ("linux", "x86_64") => ("x86_64.linux", ArchiveKind::TarGz),
-            ("macos", "x86_64") => ("x86_64.macos", ArchiveKind::TarGz),
-            ("macos", "aarch64") => ("arm64.macos", ArchiveKind::TarGz),
-            ("windows", "x86_64") => ("x64.windows", ArchiveKind::Zip),
+            ("linux", "x86_64") => (
+                "x86_64.linux",
+                ArchiveKind::TarGz,
+                "b69ca2443a226ef692ca46bdc4f89995b1e99091f2665b906cbe07e9673e48cc",
+            ),
+            ("macos", "x86_64") => (
+                "x86_64.macos",
+                ArchiveKind::TarGz,
+                "b9addf2855ee36d7768fd02d4d540e64612096487bad302e608d04e639ae1584",
+            ),
+            ("macos", "aarch64") => (
+                "arm64.macos",
+                ArchiveKind::TarGz,
+                "f1d7370bc09242bbd72d405b424ba240fd4d64103f3e607cdfeeaa2f2718cfb8",
+            ),
+            ("windows", "x86_64") => (
+                "x64.windows",
+                ArchiveKind::Zip,
+                "682d94ba57525ed177d73412e0ed903f576867bd048f830a5c6f63c56b25e8b8",
+            ),
             _ => {
                 return Err(format!(
                     "the bundled feature does not have an OpenImageDenoise {version} package for target {arch}-{os}"
@@ -165,6 +186,7 @@ impl BundledPackage {
             archive_name: format!("{package_name}.{extension}"),
             install_dir: package_name,
             archive_kind: platform.1,
+            expected_sha256: platform.2,
         })
     }
 
@@ -185,7 +207,7 @@ fn prepare_bundled_package(
     let bundle_dir = out_dir.join("oidn-bundled");
     let install_dir = bundle_dir.join(&package.install_dir);
 
-    if contains_oidn_library(&install_dir.join("lib")) {
+    if has_verified_bundle(&install_dir, package.expected_sha256) {
         return Ok(install_dir);
     }
 
@@ -193,7 +215,9 @@ fn prepare_bundled_package(
 
     let archive_path = bundle_dir.join(&package.archive_name);
     if !archive_path.exists() {
-        download_file(&package.url(), &archive_path)?;
+        download_file(&package.url(), &archive_path, package.expected_sha256)?;
+    } else {
+        verify_file_sha256(&archive_path, package.expected_sha256)?;
     }
 
     if install_dir.exists() {
@@ -201,18 +225,74 @@ fn prepare_bundled_package(
     }
 
     extract_archive(&archive_path, &bundle_dir, package.archive_kind)?;
+    write_checksum_marker(&install_dir, package.expected_sha256)?;
     Ok(install_dir)
 }
 
 #[cfg(feature = "bundled")]
-fn download_file(url: &str, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn download_file(
+    url: &str,
+    destination: &Path,
+    expected_sha256: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let tmp_destination = destination.with_extension("download");
     let mut response = ureq::get(url).call()?;
     let mut reader = response.body_mut().as_reader();
     let mut file = std::fs::File::create(&tmp_destination)?;
     std::io::copy(&mut reader, &mut file)?;
+    drop(file);
+    if let Err(error) = verify_file_sha256(&tmp_destination, expected_sha256) {
+        let _ = std::fs::remove_file(&tmp_destination);
+        return Err(error);
+    }
     std::fs::rename(tmp_destination, destination)?;
     Ok(())
+}
+
+#[cfg(feature = "bundled")]
+fn verify_file_sha256(
+    path: &Path,
+    expected_sha256: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut file, &mut hasher)?;
+    let actual_sha256 = hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+
+    if actual_sha256.eq_ignore_ascii_case(expected_sha256) {
+        Ok(())
+    } else {
+        Err(format!(
+            "SHA256 mismatch for `{}`: expected {expected_sha256}, got {actual_sha256}",
+            path.display()
+        )
+        .into())
+    }
+}
+
+#[cfg(feature = "bundled")]
+fn has_verified_bundle(install_dir: &Path, expected_sha256: &str) -> bool {
+    contains_oidn_library(&install_dir.join("lib"))
+        && std::fs::read_to_string(checksum_marker_path(install_dir))
+            .is_ok_and(|checksum| checksum.trim().eq_ignore_ascii_case(expected_sha256))
+}
+
+#[cfg(feature = "bundled")]
+fn write_checksum_marker(
+    install_dir: &Path,
+    expected_sha256: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    std::fs::write(checksum_marker_path(install_dir), expected_sha256)?;
+    Ok(())
+}
+
+#[cfg(feature = "bundled")]
+fn checksum_marker_path(install_dir: &Path) -> PathBuf {
+    install_dir.join(".oidn-rs-bundle.sha256")
 }
 
 #[cfg(feature = "bundled")]
@@ -236,23 +316,21 @@ fn extract_archive(
 }
 
 #[cfg(feature = "bundled")]
-fn add_runtime_search_path(lib_path: &Path) {
+fn add_relative_runtime_search_path() {
     match env::var("CARGO_CFG_TARGET_OS").as_deref() {
-        Ok("linux") | Ok("macos") => {
-            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_path.display());
-        }
+        Ok("linux") => println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN"),
+        Ok("macos") => println!("cargo:rustc-link-arg=-Wl,-rpath,@loader_path"),
         _ => {}
     }
 }
 
 #[cfg(feature = "bundled")]
-fn copy_windows_runtime_libraries(install_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let bin_dir = install_dir.join("bin");
-    let dlls = runtime_libraries(&bin_dir)?;
-    if dlls.is_empty() {
+fn copy_runtime_libraries(source_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let libraries = runtime_libraries(source_dir)?;
+    if libraries.is_empty() {
         return Err(format!(
-            "no bundled OpenImageDenoise DLLs were found in `{}`",
-            bin_dir.display()
+            "no bundled OpenImageDenoise runtime libraries were found in `{}`",
+            source_dir.display()
         )
         .into());
     }
@@ -264,15 +342,15 @@ fn copy_windows_runtime_libraries(install_dir: &Path) -> Result<(), Box<dyn std:
         profile_dir.join("examples"),
     ] {
         std::fs::create_dir_all(&destination)?;
-        for dll in &dlls {
-            let file_name = dll.file_name().ok_or_else(|| {
+        for library in &libraries {
+            let file_name = library.file_name().ok_or_else(|| {
                 format!(
                     "could not determine bundled runtime library name for `{}`",
-                    dll.display()
+                    library.display()
                 )
             })?;
-            std::fs::copy(dll, destination.join(file_name))?;
-            println!("cargo:rerun-if-changed={}", dll.display());
+            std::fs::copy(library, destination.join(file_name))?;
+            println!("cargo:rerun-if-changed={}", library.display());
         }
     }
 
@@ -282,17 +360,31 @@ fn copy_windows_runtime_libraries(install_dir: &Path) -> Result<(), Box<dyn std:
 #[cfg(feature = "bundled")]
 fn runtime_libraries(dir: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     let mut libraries = Vec::new();
+    let target_os = env::var("CARGO_CFG_TARGET_OS")?;
     for entry in dir.read_dir()? {
         let path = entry?.path();
-        let is_dll = path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("dll"));
-        if is_dll {
+        if is_runtime_library(&path, &target_os) {
             libraries.push(path);
         }
     }
     Ok(libraries)
+}
+
+#[cfg(feature = "bundled")]
+fn is_runtime_library(path: &Path, target_os: &str) -> bool {
+    let Some(file_name) = path.file_name().and_then(|file_name| file_name.to_str()) else {
+        return false;
+    };
+
+    match target_os {
+        "linux" => file_name.ends_with(".so") || file_name.contains(".so."),
+        "macos" => file_name.ends_with(".dylib"),
+        "windows" => path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("dll")),
+        _ => false,
+    }
 }
 
 #[cfg(feature = "bundled")]

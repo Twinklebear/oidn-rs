@@ -24,13 +24,15 @@ oidn = { version = "2.4.1", features = ["bundled"] }
 ```
 
 The bundled feature supports the official OIDN packages for x86_64 Linux,
-x86_64 Windows, and x86_64/aarch64 macOS. Set `OIDN_BUNDLED_DIR` to a
-pre-extracted OIDN package root if you want to provide the files yourself or
-avoid a network download during the build. The feature still links the dynamic
-OIDN libraries, so applications that redistribute binaries must also ship the
-runtime libraries from the bundled package's `lib` or `bin` directory. On
-Windows, the build script also copies the bundled DLLs into the active Cargo
-target output directories for local `cargo run`, examples, and tests.
+x86_64 Windows, and x86_64/aarch64 macOS. Downloaded archives are verified
+against pinned SHA-256 checksums for the crate's OIDN version. Set
+`OIDN_BUNDLED_DIR` to a pre-extracted OIDN package root if you want to provide
+the files yourself or avoid a network download during the build. The feature
+still links the dynamic OIDN libraries, so applications that redistribute
+binaries must also ship the runtime libraries from the bundled package's `lib`
+or `bin` directory. For local `cargo run`, examples, and tests, the build
+script copies bundled runtime libraries into the active Cargo target output
+directories and uses relative runtime search paths on Linux and macOS.
 
 ## Development tasks
 
