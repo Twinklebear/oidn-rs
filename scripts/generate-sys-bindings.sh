@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 
-# This should be run on nightly rust, as it requires
-# rustfmt-nightly to do the formatting
+# Regenerates the raw OIDN bindings with stable Rust-compatible output.
 
 bindgen $1 -o $2 \
 	--no-doc-comments \
 	--distrust-clang-mangling \
 	--allowlist-function "oidn.*" \
-	--allowlist-type "OIDN.*" \
-	--rust-target nightly
+	--allowlist-type "OIDN.*"

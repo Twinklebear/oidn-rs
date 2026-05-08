@@ -2,6 +2,7 @@
 name = "oidn"
 version = "2.3.2"
 edition = "2024"
+rust-version = "1.85"
 authors = ["Will Usher <will@willusher.io>"]
 build = "build.rs"
 homepage = "https://github.com/Twinklebear/oidn-rs"

@@ -10,16 +10,11 @@ env:
 jobs:
     build_linux:
         runs-on: ubuntu-latest
-        strategy:
-          matrix:
-            rust_channel: [stable, beta, nightly]
         steps:
             - uses: actions/checkout@v4
             - name: Set up Rust toolchain
-              uses: actions-rs/toolchain@v1
+              uses: dtolnay/rust-toolchain@stable
               with:
-                toolchain: ${{ matrix.rust_channel }}
-                override: true
                 components: rustfmt, clippy
             - name: Cache OIDN download (Linux)
               id: cache-oidn
@@ -33,7 +28,6 @@ jobs:
             - run: tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
             - run: echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
-            - run: rustup update
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
             - run: cargo test --all --all-targets
@@ -44,16 +38,11 @@ jobs:
               run: cargo fmt -- --check
     build_mac:
         runs-on: macos-latest
-        strategy:
-          matrix:
-            rust_channel: [stable, beta, nightly]
         steps:
             - uses: actions/checkout@v4
             - name: Set up Rust toolchain
-              uses: actions-rs/toolchain@v1
+              uses: dtolnay/rust-toolchain@stable
               with:
-                toolchain: ${{ matrix.rust_channel }}
-                override: true
                 components: rustfmt, clippy
             - name: Cache OIDN download (macOS)
               id: cache-oidn
@@ -68,21 +57,15 @@ jobs:
             - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.arm64.macos" >> $GITHUB_ENV
             - run: echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
             - run: cp $OIDN_DIR/lib/*dylib .
-            - run: rustup update
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
     build_windows:
         runs-on: windows-latest
-        strategy:
-          matrix:
-            rust_channel: [stable, beta, nightly]
         steps:
             - uses: actions/checkout@v4
             - name: Set up Rust toolchain
-              uses: actions-rs/toolchain@v1
+              uses: dtolnay/rust-toolchain@stable
               with:
-                toolchain: ${{ matrix.rust_channel }}
-                override: true
                 components: rustfmt, clippy
             - name: Cache OIDN download (Windows)
               id: cache-oidn
@@ -97,7 +80,6 @@ jobs:
               if: steps.cache-oidn.outputs.cache-hit != 'true'
               run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.windows.zip
             - run: 7z x oidn-${env:OIDN_VERSION}.x64.windows.zip -y
-            - run: rustup update
             - run: |
                 $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo build --all --all-targets
