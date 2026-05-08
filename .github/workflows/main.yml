@@ -31,6 +31,14 @@ jobs:
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
             - run: cargo test --all --all-targets
+            - name: Test bundled download and extraction (Linux)
+              run: cargo test -p oidn --lib --features bundled
+              env:
+                  LD_LIBRARY_PATH: ""
+            - name: Lint bundled build (Linux)
+              run: cargo clippy -p oidn --all-targets --features bundled -- -D warnings
+              env:
+                  LD_LIBRARY_PATH: ""
             - run: cargo doc --all --no-deps --document-private-items
               env:
                   RUSTDOCFLAGS: -Dwarnings
@@ -59,6 +67,16 @@ jobs:
             - run: cp $OIDN_DIR/lib/*dylib .
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
+            - name: Build bundled feature (macOS)
+              run: cargo build -p oidn --all-targets --features bundled
+              env:
+                  DYLD_LIBRARY_PATH: ""
+                  OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.arm64.macos
+            - name: Test bundled feature (macOS)
+              run: cargo test -p oidn --lib --features bundled
+              env:
+                  DYLD_LIBRARY_PATH: ""
+                  OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.arm64.macos
     build_windows:
         runs-on: windows-latest
         steps:
@@ -86,4 +104,12 @@ jobs:
             - run: |
                 $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo clippy --all --all-targets -- -D warnings
+            - name: Build bundled feature (Windows)
+              run: cargo build -p oidn --all-targets --features bundled
+              env:
+                  OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.x64.windows
+            - name: Test bundled feature (Windows)
+              run: cargo test -p oidn --lib --features bundled
+              env:
+                  OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.x64.windows
 
