@@ -421,3 +421,379 @@ fn format_command(program: &str, args: &[OsString]) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempRoot(PathBuf);
+
+    impl TempRoot {
+        fn new(name: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock should be after Unix epoch")
+                .as_nanos();
+            let root = env::temp_dir().join(format!(
+                "oidn-rs-xtask-{name}-{}-{unique}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&root).unwrap();
+            Self(root)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempRoot {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn write_file(path: &Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, contents).unwrap();
+    }
+
+    #[test]
+    fn package_version_reads_package_section_only() {
+        let root = TempRoot::new("package-version");
+        write_file(
+            &root.path().join("Cargo.toml"),
+            r#"
+[workspace]
+version = "9.9.9"
+
+[package]
+name = "oidn"
+version = "2.4.1"
+"#,
+        );
+
+        assert_eq!(package_version(root.path()), Some("2.4.1".to_string()));
+    }
+
+    #[test]
+    fn oidn_dir_finds_current_platform_package_dir() {
+        let suffixes = platform_package_suffixes();
+        if suffixes.is_empty() {
+            return;
+        }
+
+        let root = TempRoot::new("oidn-dir");
+        write_file(
+            &root.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "oidn"
+version = "2.4.1"
+"#,
+        );
+        let expected_dir = root.path().join(format!("oidn-2.4.1.{}", suffixes[0]));
+        fs::create_dir_all(&expected_dir).unwrap();
+
+        assert_eq!(oidn_dir(root.path()), Some(expected_dir));
+    }
+
+    #[test]
+    fn header_candidates_for_oidn_dir_cover_current_layouts() {
+        let root = PathBuf::from("oidn-2.4.1.x64.windows");
+
+        assert_eq!(
+            header_candidates_for_oidn_dir(root.clone()),
+            vec![
+                root.join("include").join("OpenImageDenoise").join("oidn.h"),
+                root.join("include").join("oidn.h"),
+            ]
+        );
+    }
+
+    #[test]
+    fn find_target_oidn_headers_discovers_bundled_headers() {
+        let root = TempRoot::new("target-headers");
+        let header = root
+            .path()
+            .join("target")
+            .join("debug")
+            .join("build")
+            .join("oidn-test")
+            .join("out")
+            .join("oidn-bundled")
+            .join("oidn-2.4.1.x64.windows")
+            .join("include")
+            .join("OpenImageDenoise")
+            .join("oidn.h");
+        write_file(&header, "");
+
+        assert_eq!(
+            find_target_oidn_headers(&root.path().join("target")),
+            vec![header]
+        );
+    }
+
+    #[test]
+    fn oidn_package_dirs_uses_host_platform_suffixes() {
+        let root = TempRoot::new("package-dirs");
+        let dirs = oidn_package_dirs(root.path(), "2.4.1");
+
+        assert_eq!(dirs.len(), platform_package_suffixes().len());
+        for (dir, suffix) in dirs.iter().zip(platform_package_suffixes()) {
+            assert_eq!(dir, &root.path().join(format!("oidn-2.4.1.{suffix}")));
+        }
+    }
+
+    #[test]
+    fn runtime_library_path_points_at_host_runtime_dir() {
+        let oidn_dir = PathBuf::from("oidn-2.4.1");
+        let Some((variable, path)) = runtime_library_path(&oidn_dir) else {
+            return;
+        };
+
+        match env::consts::OS {
+            "linux" => {
+                assert_eq!(variable, "LD_LIBRARY_PATH");
+                assert_eq!(path, oidn_dir.join("lib"));
+            }
+            "macos" => {
+                assert_eq!(variable, "DYLD_LIBRARY_PATH");
+                assert_eq!(path, oidn_dir.join("lib"));
+            }
+            "windows" => {
+                assert_eq!(variable, "PATH");
+                assert_eq!(path, oidn_dir.join("bin"));
+            }
+            _ => unreachable!("unsupported host returned a runtime library path"),
+        }
+    }
+
+    #[test]
+    fn bindgen_args_include_oidn_allowlists_and_cpp_mode() {
+        let header = PathBuf::from("include")
+            .join("OpenImageDenoise")
+            .join("oidn.h");
+        let output = PathBuf::from("src").join("sys.rs");
+        let args = bindgen_args(&header, &output)
+            .into_iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(args[0], header.to_string_lossy());
+        assert_eq!(args[1], "-o");
+        assert_eq!(args[2], output.to_string_lossy());
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--allowlist-function", "oidn.*"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--allowlist-type", "OIDN.*"])
+        );
+        assert!(args.windows(2).any(|pair| pair == ["-x", "c++"]));
+        assert!(args.iter().any(|arg| arg == "-std=c++11"));
+    }
+
+    #[test]
+    fn contains_libclang_detects_host_library_name() {
+        let root = TempRoot::new("libclang");
+        assert!(!contains_libclang(root.path()));
+
+        write_file(&root.path().join(libclang_file_names()[0]), "");
+        assert!(contains_libclang(root.path()));
+    }
+
+    #[test]
+    fn default_llvm_dirs_are_absolute() {
+        for dir in default_llvm_dirs() {
+            assert!(dir.is_absolute());
+        }
+    }
+
+    #[test]
+    fn workspace_path_keeps_absolute_paths_and_resolves_relative_paths() {
+        let root = TempRoot::new("workspace-path");
+        let relative = workspace_path(root.path(), OsStr::new("src/sys.rs"));
+        assert_eq!(relative, root.path().join("src").join("sys.rs"));
+
+        let absolute = root.path().join("oidn.h");
+        assert_eq!(workspace_path(root.path(), absolute.as_os_str()), absolute);
+    }
+
+    #[test]
+    fn appended_path_adds_runtime_path_to_empty_variable() {
+        let root = TempRoot::new("appended-path");
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after Unix epoch")
+            .as_nanos();
+        let variable = format!("OIDN_RS_XTASK_TEST_PATH_{}_{unique}", std::process::id());
+        let path = root.path().join("bin");
+
+        let joined = appended_path(&variable, &path).unwrap();
+        let paths = env::split_paths(&joined).collect::<Vec<_>>();
+        assert_eq!(paths, vec![path]);
+    }
+
+    #[test]
+    fn package_version_returns_none_for_missing_or_malformed_manifests() {
+        let root = TempRoot::new("missing-package-version");
+        assert_eq!(package_version(root.path()), None);
+
+        write_file(
+            &root.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "oidn"
+"#,
+        );
+        assert_eq!(package_version(root.path()), None);
+
+        write_file(
+            &root.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "oidn"
+version "2.4.1"
+"#,
+        );
+        assert_eq!(package_version(root.path()), None);
+    }
+
+    #[test]
+    fn find_target_oidn_headers_returns_empty_for_missing_target_dir() {
+        let root = TempRoot::new("missing-target-headers");
+        assert!(find_target_oidn_headers(&root.path().join("target")).is_empty());
+    }
+
+    #[test]
+    fn find_oidn_header_finds_packaged_header() {
+        let suffixes = platform_package_suffixes();
+        if suffixes.is_empty() {
+            return;
+        }
+
+        let root = TempRoot::new("find-oidn-header");
+        write_file(
+            &root.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "oidn"
+version = "2.4.1"
+"#,
+        );
+        let header = root
+            .path()
+            .join(format!("oidn-2.4.1.{}", suffixes[0]))
+            .join("include")
+            .join("OpenImageDenoise")
+            .join("oidn.h");
+        write_file(&header, "");
+
+        assert!(header_candidates(root.path()).contains(&header));
+        assert!(find_oidn_header(root.path()).unwrap().is_file());
+    }
+
+    #[test]
+    fn oidn_environment_uses_package_dir_and_runtime_path() {
+        let suffixes = platform_package_suffixes();
+        let Some(suffix) = suffixes.first() else {
+            return;
+        };
+
+        let root = TempRoot::new("oidn-environment");
+        write_file(
+            &root.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "oidn"
+version = "2.4.1"
+"#,
+        );
+        let oidn_dir = root.path().join(format!("oidn-2.4.1.{suffix}"));
+        fs::create_dir_all(&oidn_dir).unwrap();
+        if let Some((_, runtime_dir)) = runtime_library_path(&oidn_dir) {
+            fs::create_dir_all(runtime_dir).unwrap();
+        }
+
+        let envs = oidn_environment(root.path()).unwrap();
+        assert!(
+            envs.iter()
+                .any(|(key, value)| key == "OIDN_DIR" && value == oidn_dir.as_os_str())
+        );
+
+        if let Some((variable, runtime_dir)) = runtime_library_path(&oidn_dir) {
+            let value = envs
+                .iter()
+                .find_map(|(key, value)| (key == variable).then_some(value))
+                .expect("runtime library path should be added when the directory exists");
+            assert!(env::split_paths(value).any(|path| path == runtime_dir));
+        }
+    }
+
+    #[test]
+    fn command_helpers_report_success_and_failure() {
+        let root = TempRoot::new("command-helpers");
+        run_command(root.path(), "rustc", &[OsString::from("--version")], &[]).unwrap();
+        run_cargo(root.path(), &["--version"], &[], &[]).unwrap();
+
+        let error = run_command(
+            root.path(),
+            "rustc",
+            &[OsString::from("--definitely-not-a-rustc-flag")],
+            &[],
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("failed with status"));
+    }
+
+    #[test]
+    fn generate_sys_bindings_rejects_too_many_arguments() {
+        let root = TempRoot::new("generate-bindings-usage");
+        let args = [
+            OsString::from("oidn.h"),
+            OsString::from("src/sys.rs"),
+            OsString::from("extra"),
+        ];
+
+        let error = generate_sys_bindings(root.path(), &args)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("generate-sys-bindings [oidn.h] [src/sys.rs]"));
+    }
+
+    #[test]
+    fn python_libclang_dir_returns_none_when_command_cannot_run() {
+        assert_eq!(
+            python_libclang_dir("oidn-rs-python-that-does-not-exist", ""),
+            None
+        );
+    }
+
+    #[test]
+    fn workspace_root_points_at_repo_root() {
+        let root = workspace_root().unwrap();
+        assert!(root.join("Cargo.toml").is_file());
+        assert!(root.join("xtask").join("Cargo.toml").is_file());
+    }
+
+    #[test]
+    fn format_command_prints_program_and_arguments_in_order() {
+        let args = [
+            OsString::from("build"),
+            OsString::from("--examples"),
+            OsString::from("--features"),
+            OsString::from("bundled"),
+        ];
+
+        assert_eq!(
+            format_command("cargo", &args),
+            "cargo build --examples --features bundled"
+        );
+    }
+}
