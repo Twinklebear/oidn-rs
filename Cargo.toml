@@ -21,6 +21,11 @@ exclude = [
 ]
 links = "OpenImageDenoise"
 
+[workspace]
+members = [".", "xtask"]
+default-members = ["."]
+resolver = "3"
+
 [dependencies]
 num_enum = "0.7.3"
 
