@@ -11,21 +11,34 @@ readme = "README.md"
 license = "MIT"
 description = "A wrapper for the Intel OpenImageDenoise image denoising library."
 keywords = ["openimagedenoise", "denoise", "denoising"]
-exclude = [
-    ".travis.yml",
-    "*.png",
-    "*.jpg",
-    ".gitignore",
-    "examples/*",
-    "scripts/*",
+include = [
+    "Cargo.toml",
+    "LICENSE.md",
+    "README.md",
+    "build.rs",
+    "src/**",
+    "tests/**",
+    "examples/*.rs",
 ]
 links = "OpenImageDenoise"
+
+
+[features]
+default = []
+bundled = ["dep:flate2", "dep:sha2", "dep:tar", "dep:ureq", "dep:zip"]
 
 [dependencies]
 num_enum = "0.7.6"
 
 [build-dependencies]
+flate2 = { version = "1.1.9", optional = true }
 pkg-config = "0.3.33"
+sha2 = { version = "0.10.9", optional = true }
+tar = { version = "0.4.45", optional = true }
+ureq = { version = "3.3.0", optional = true }
+zip = { version = "8.6.0", default-features = false, features = [
+    "deflate",
+], optional = true }
 
 [dev-dependencies]
 rand = "0.10.1"

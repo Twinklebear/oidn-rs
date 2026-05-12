@@ -12,6 +12,28 @@ Rust docs can be found [here](https://docs.rs/oidn).
 
 Open Image Denoise documentation can be found [here](https://openimagedenoise.github.io/documentation.html).
 
+## Bundled OIDN binaries
+
+By default this crate links against an Open Image Denoise installation found
+through `OIDN_DIR` or `pkg-config`. Enable the `bundled` feature to have the
+build script download the matching official Open Image Denoise binary package
+and link against it:
+
+```toml
+oidn = { version = "2.4.1", features = ["bundled"] }
+```
+
+The bundled feature supports the official OIDN packages for x86_64 Linux,
+x86_64 Windows, and x86_64/aarch64 macOS. Downloaded archives are verified
+against pinned SHA-256 checksums for the crate's OIDN version. Set
+`OIDN_BUNDLED_DIR` to a pre-extracted OIDN package root if you want to provide
+the files yourself or avoid a network download during the build. The feature
+still links the dynamic OIDN libraries, so applications that redistribute
+binaries must also ship the runtime libraries from the bundled package's `lib`
+or `bin` directory. For local `cargo run`, examples, and tests, the build
+script copies bundled runtime libraries into the active Cargo target output
+directories and uses relative runtime search paths on Linux and macOS.
+
 ## Example
 
 The crate provides a lightweight wrapper over the Open Image Denoise library,
