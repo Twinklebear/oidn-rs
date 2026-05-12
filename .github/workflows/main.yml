@@ -32,7 +32,7 @@ jobs:
             - run: cargo clippy --all --all-targets -- -D warnings
             - run: cargo test --all --all-targets
             - name: Test bundled download and extraction (Linux)
-              run: cargo test -p oidn --lib --features bundled
+              run: cargo test -p oidn --all-targets --features bundled
               env:
                   LD_LIBRARY_PATH: ""
             - name: Lint bundled build (Linux)
@@ -73,7 +73,7 @@ jobs:
                   DYLD_LIBRARY_PATH: ""
                   OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.arm64.macos
             - name: Test bundled feature (macOS)
-              run: cargo test -p oidn --lib --features bundled
+              run: cargo test -p oidn --all-targets --features bundled
               env:
                   DYLD_LIBRARY_PATH: ""
                   OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.arm64.macos
@@ -109,7 +109,7 @@ jobs:
               env:
                   OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.x64.windows
             - name: Test bundled feature (Windows)
-              run: cargo test -p oidn --lib --features bundled
+              run: cargo test -p oidn --all-targets --features bundled
               env:
                   OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.x64.windows
 

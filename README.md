@@ -54,6 +54,11 @@ bundled package under `target`. Explicit header and output paths can also be
 passed to `generate-sys-bindings`. The binding generator expects `bindgen` and
 a usable `libclang` installation to be available.
 
+When bumping the Open Image Denoise version, update the crate version,
+`.github/workflows/main.yml`'s `OIDN_VERSION`, and the bundled package
+SHA-256 values in `build.rs`. The bundled CI job verifies the host archive
+against the pinned checksum.
+
 ## Example
 
 The crate provides a lightweight wrapper over the Open Image Denoise library,

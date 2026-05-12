@@ -148,6 +148,8 @@ impl BundledPackage {
         let version = env!("CARGO_PKG_VERSION");
         let os = env::var("CARGO_CFG_TARGET_OS")?;
         let arch = env::var("CARGO_CFG_TARGET_ARCH")?;
+        // Keep these checksums in sync with the OIDN package version above.
+        // The bundled CI job verifies the current host archive against them.
         let platform = match (os.as_str(), arch.as_str()) {
             ("linux", "x86_64") => (
                 "x86_64.linux",
