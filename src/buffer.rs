@@ -170,7 +170,7 @@ impl Buffer {
         } else {
             let byte_size = mem::size_of_val(contents);
             unsafe {
-                oidnReadBuffer(self.buf, 0, byte_size, contents.as_ptr() as *mut _);
+                oidnReadBuffer(self.buf, 0, byte_size, contents.as_mut_ptr() as *mut _);
             }
             Some(())
         }
@@ -178,13 +178,13 @@ impl Buffer {
 
     /// Reads from the buffer
     pub fn read(&self) -> Vec<f32> {
-        let contents = vec![0.0; self.size];
+        let mut contents = vec![0.0; self.size];
         unsafe {
             oidnReadBuffer(
                 self.buf,
                 0,
                 self.size * mem::size_of::<f32>(),
-                contents.as_ptr() as *mut _,
+                contents.as_mut_ptr() as *mut _,
             );
         }
         contents

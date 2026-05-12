@@ -1,5 +1,5 @@
 use crate::{Error, Quality, buffer::Buffer, device::Device, sys::*};
-use std::mem;
+use std::{cell::Cell, mem};
 
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
@@ -14,6 +14,8 @@ pub struct RayTracing<'a> {
     srgb: bool,
     clean_aux: bool,
     weights: Option<Vec<u8>>,
+    // Tracks whether OIDN currently holds a shared-data pointer into `weights`.
+    weights_set: Cell<bool>,
     img_dims: (usize, usize, usize),
     filter_quality: OIDNQuality,
 }
@@ -34,6 +36,7 @@ impl<'a> RayTracing<'a> {
             srgb: false,
             clean_aux: false,
             weights: None,
+            weights_set: Cell::new(false),
             img_dims: (0, 0, 0),
             filter_quality: 0,
         }
@@ -208,15 +211,29 @@ impl<'a> RayTracing<'a> {
     /// supplied or [RayTracing::clear_weights] is called.
     pub fn weights(&mut self, weights: &[u8]) -> &mut RayTracing<'a> {
         self.weights = Some(weights.to_vec());
+        if self.weights_set.get() {
+            let weights = self.weights.as_ref().expect("weights were just set");
+            unsafe {
+                oidnSetSharedFilterData(
+                    self.handle,
+                    b"weights\0" as *const _ as _,
+                    weights.as_ptr() as *mut _,
+                    weights.len(),
+                );
+            }
+        }
         self
     }
 
     /// Clear any previously supplied custom model weights.
     pub fn clear_weights(&mut self) -> &mut RayTracing<'a> {
-        self.weights = None;
-        unsafe {
-            oidnUnsetFilterData(self.handle, b"weights\0" as *const _ as _);
+        if self.weights_set.get() {
+            unsafe {
+                oidnUnsetFilterData(self.handle, b"weights\0" as *const _ as _);
+            }
+            self.weights_set.set(false);
         }
+        self.weights = None;
         self
     }
 
@@ -224,19 +241,26 @@ impl<'a> RayTracing<'a> {
     /// does not equal old width * old height
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
-        if self
+        let clear_albedo = self
             .albedo
             .as_ref()
-            .is_some_and(|buffer| buffer.size != buffer_dims)
-        {
-            self.albedo = None;
-        }
-        if self
+            .is_some_and(|buffer| buffer.size != buffer_dims);
+        let clear_normal = self
             .normal
             .as_ref()
-            .is_some_and(|buffer| buffer.size != buffer_dims)
-        {
+            .is_some_and(|buffer| buffer.size != buffer_dims);
+
+        if clear_albedo {
+            self.albedo = None;
+            unsafe {
+                oidnUnsetFilterImage(self.handle, b"albedo\0" as *const _ as _);
+            }
+        }
+        if clear_albedo || clear_normal {
             self.normal = None;
+            unsafe {
+                oidnUnsetFilterImage(self.handle, b"normal\0" as *const _ as _);
+            }
         }
         self.img_dims = (width, height, buffer_dims);
         self
@@ -398,6 +422,9 @@ impl<'a> RayTracing<'a> {
                 color
             }
             None => {
+                if !self.device.same_device_as_buf(output) {
+                    return Err(Error::InvalidArgument);
+                }
                 if output.size != self.img_dims.2 {
                     return Err(Error::InvalidImageDimensions);
                 }
@@ -452,6 +479,7 @@ impl<'a> RayTracing<'a> {
                     weights.as_ptr() as *mut _,
                     weights.len(),
                 );
+                self.weights_set.set(true);
             }
 
             oidnSetFilterInt(
