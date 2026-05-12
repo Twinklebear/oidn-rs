@@ -1,0 +1,134 @@
+name: Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - pages
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Website
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Trunk
+        run: cargo install trunk --locked
+
+      - name: Build Pages artifact
+        working-directory: examples/web
+        run: trunk build --release --public-url ./ --dist ../../target/pages --skip-version-check
+
+      - name: Build Rust docs
+        run: cargo doc -p oidn --features bundled --no-deps
+
+      - name: Add Rust docs to Pages artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf target/pages/docs
+          mkdir -p target/pages/docs
+          cp -R target/doc/. target/pages/docs/
+
+      - name: Smoke check website
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("target/pages")
+          required_files = [
+              "index.html",
+              "docs/oidn/index.html",
+              "assets/oak-grove-noisy.webp",
+              "assets/oak-grove-denoised.webp",
+              "assets/cornell-box-noisy.webp",
+              "assets/cornell-box-denoised.webp",
+              "assets/teapot-noisy.webp",
+              "assets/teapot-denoised.webp",
+              "assets/veach-ajar-noisy.webp",
+              "assets/veach-ajar-denoised.webp",
+              "assets/exr-still-life-noisy.webp",
+              "assets/exr-still-life-denoised.webp",
+              "assets/exr-mt-tam-west-noisy.webp",
+              "assets/exr-mt-tam-west-denoised.webp",
+              "assets/fighter-jet-noisy.webp",
+              "assets/fighter-jet-denoised.webp",
+          ]
+          missing = [name for name in required_files if not (root / name).is_file()]
+          if missing:
+              raise SystemExit(f"missing website output: {', '.join(missing)}")
+
+          css_files = list(root.glob("*.css"))
+          js_files = list(root.glob("*.js"))
+          wasm_files = list(root.glob("*.wasm"))
+          if not css_files:
+              raise SystemExit("missing Trunk CSS output")
+          if not js_files:
+              raise SystemExit("missing wasm-bindgen JS loader output")
+          if not wasm_files:
+              raise SystemExit("missing WebAssembly output")
+
+          index = (root / "index.html").read_text(encoding="utf-8")
+          index_needles = ["oidn-rs Denoise Examples", ".css", ".js"]
+          missing_index_needles = [
+              needle for needle in index_needles if needle not in index
+          ]
+          if missing_index_needles:
+              joined = ", ".join(missing_index_needles)
+              raise SystemExit(f"index.html is missing expected references: {joined}")
+
+          app_source = Path("examples/web/src/main.rs").read_text(encoding="utf-8")
+          if "./docs/oidn/index.html" not in app_source:
+              raise SystemExit("web demo source is missing the local rustdoc link")
+
+          css = "\n".join(path.read_text(encoding="utf-8") for path in css_files)
+          css_needles = ["--accent", ".workspace", ".comparison"]
+          missing_css_needles = [needle for needle in css_needles if needle not in css]
+          if missing_css_needles:
+              joined = ", ".join(missing_css_needles)
+              raise SystemExit(f"CSS output is missing expected rules: {joined}")
+          PY
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: target/pages
+
+  deploy:
+    name: Deploy Website
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

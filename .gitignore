@@ -12,3 +12,14 @@ Cargo.lock
 *.dll
 *.out
 .vscode/
+examples/web/.tmp/
+examples/web/.trunk/
+examples/web/dist/
+examples/web/node_modules/
+examples/web/*.js
+examples/web/*.mjs
+examples/web/*.wasm
+examples/web/*.map
+examples/web/package-lock.json
+examples/web/bun.lock
+examples/web/bun.lockb

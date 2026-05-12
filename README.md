@@ -96,3 +96,33 @@ output image to a JPG. The [denoise_exr](examples/denoise_exr.rs) example loads 
 HDR color EXR file, denoises it and saves the tonemapped result out to a JPG.
 The `denoise_exr` app can also take albedo and normal data through additional
 EXR files.
+
+## Web demo
+
+The [web demo](examples/web/) is a Rust/Yew browser gallery with checked-in
+noisy and `oidn-rs` denoised WebP pairs. The GitHub Pages workflow builds the
+demo, builds crate docs with `cargo doc --no-deps`, and publishes the docs under
+`/docs/` in the same Pages artifact.
+
+Preview the demo locally with:
+
+```bash
+cd examples/web
+rustup target add wasm32-unknown-unknown
+cargo install trunk --locked
+trunk serve --address 127.0.0.1 --port 8000 --no-spa --skip-version-check
+```
+
+Build the Pages artifact locally with:
+
+```bash
+cd examples/web
+trunk build --release --public-url ./ --dist ../../target/pages --skip-version-check
+cd ../..
+cargo doc -p oidn --features bundled --no-deps
+mkdir -p target/pages/docs
+cp -R target/doc/. target/pages/docs/
+```
+
+Asset source notes live in
+[examples/web/assets/README.md](examples/web/assets/README.md).
