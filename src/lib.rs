@@ -48,7 +48,7 @@ pub use device::Device;
 #[doc(inline)]
 pub use filter::RayTracing;
 
-#[repr(u32)]
+#[repr(i32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
 pub enum Error {
     None = sys::OIDNError_OIDN_ERROR_NONE,
@@ -61,7 +61,7 @@ pub enum Error {
     InvalidImageDimensions,
 }
 
-#[repr(u32)]
+#[repr(i32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive, Default)]
 pub enum Quality {
     #[default]
