@@ -42,11 +42,11 @@ pub mod sys;
 mod tests;
 
 #[doc(inline)]
-pub use buffer::Buffer;
+pub use buffer::{Buffer, PendingBufferRead, PendingBufferWrite};
 #[doc(inline)]
 pub use device::Device;
 #[doc(inline)]
-pub use filter::RayTracing;
+pub use filter::{PendingFilter, RayTracing};
 
 #[repr(i32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
@@ -78,6 +78,27 @@ impl Quality {
             Quality::Balanced => sys::OIDNQuality_OIDN_QUALITY_BALANCED,
             Quality::High => sys::OIDNQuality_OIDN_QUALITY_HIGH,
             Quality::Fast => sys::OIDNQuality_OIDN_QUALITY_FAST,
+        }
+    }
+}
+
+#[repr(i32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive, Default)]
+pub enum Storage {
+    #[default]
+    Undefined = sys::OIDNStorage_OIDN_STORAGE_UNDEFINED,
+    Host = sys::OIDNStorage_OIDN_STORAGE_HOST,
+    Device = sys::OIDNStorage_OIDN_STORAGE_DEVICE,
+    Managed = sys::OIDNStorage_OIDN_STORAGE_MANAGED,
+}
+
+impl Storage {
+    pub fn as_raw_oidn_storage(&self) -> sys::OIDNStorage {
+        match self {
+            Storage::Undefined => sys::OIDNStorage_OIDN_STORAGE_UNDEFINED,
+            Storage::Host => sys::OIDNStorage_OIDN_STORAGE_HOST,
+            Storage::Device => sys::OIDNStorage_OIDN_STORAGE_DEVICE,
+            Storage::Managed => sys::OIDNStorage_OIDN_STORAGE_MANAGED,
         }
     }
 }
