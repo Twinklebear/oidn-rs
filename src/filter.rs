@@ -63,13 +63,7 @@ impl<'a> RayTracing<'a> {
     /// # Panics
     /// - if resource creation fails
     pub fn albedo_normal(&mut self, albedo: &[f32], normal: &[f32]) -> &mut RayTracing<'a> {
-        match self.albedo.as_mut().and_then(|buf| {
-            if buf.size == albedo.len() {
-                Some(buf)
-            } else {
-                None
-            }
-        }) {
+        match self.albedo.as_mut().filter(|buf| buf.size == albedo.len()) {
             None => {
                 self.albedo = Some(self.device.create_buffer(albedo).unwrap());
             }
@@ -78,13 +72,7 @@ impl<'a> RayTracing<'a> {
                     .expect("we check if the size is the same already");
             }
         }
-        match self.normal.as_mut().and_then(|buf| {
-            if buf.size == normal.len() {
-                Some(buf)
-            } else {
-                None
-            }
-        }) {
+        match self.normal.as_mut().filter(|buf| buf.size == normal.len()) {
             None => {
                 self.normal = Some(self.device.create_buffer(normal).unwrap());
             }
@@ -102,13 +90,7 @@ impl<'a> RayTracing<'a> {
     /// # Panics
     /// - if resource creation fails
     pub fn albedo(&mut self, albedo: &[f32]) -> &mut RayTracing<'a> {
-        match self.albedo.as_mut().and_then(|buf| {
-            if buf.size == albedo.len() {
-                Some(buf)
-            } else {
-                None
-            }
-        }) {
+        match self.albedo.as_mut().filter(|buf| buf.size == albedo.len()) {
             None => {
                 self.albedo = Some(self.device.create_buffer(albedo).unwrap());
             }
