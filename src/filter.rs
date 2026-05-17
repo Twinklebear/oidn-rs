@@ -58,13 +58,7 @@ impl<'a> RayTracing<'a> {
     /// # Panics
     /// - if resource creation fails
     pub fn albedo_normal(&mut self, albedo: &[f32], normal: &[f32]) -> &mut RayTracing<'a> {
-        match self.albedo.as_mut().and_then(|buf| {
-            if buf.size == albedo.len() {
-                Some(buf)
-            } else {
-                None
-            }
-        }) {
+        match self.albedo.as_mut().filter(|buf| buf.size == albedo.len()) {
             None => {
                 self.albedo = Some(self.device.create_buffer(albedo).unwrap());
             }
@@ -73,13 +67,7 @@ impl<'a> RayTracing<'a> {
                     .expect("we check if the size is the same already");
             }
         }
-        match self.normal.as_mut().and_then(|buf| {
-            if buf.size == normal.len() {
-                Some(buf)
-            } else {
-                None
-            }
-        }) {
+        match self.normal.as_mut().filter(|buf| buf.size == normal.len()) {
             None => {
                 self.normal = Some(self.device.create_buffer(normal).unwrap());
             }
@@ -97,13 +85,7 @@ impl<'a> RayTracing<'a> {
     /// # Panics
     /// - if resource creation fails
     pub fn albedo(&mut self, albedo: &[f32]) -> &mut RayTracing<'a> {
-        match self.albedo.as_mut().and_then(|buf| {
-            if buf.size == albedo.len() {
-                Some(buf)
-            } else {
-                None
-            }
-        }) {
+        match self.albedo.as_mut().filter(|buf| buf.size == albedo.len()) {
             None => {
                 self.albedo = Some(self.device.create_buffer(albedo).unwrap());
             }
@@ -201,21 +183,19 @@ impl<'a> RayTracing<'a> {
     /// does not equal old width * old height
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
-        match &self.albedo {
-            None => {}
-            Some(buffer) => {
-                if buffer.size != buffer_dims {
-                    self.albedo = None;
-                }
-            }
+        if self
+            .albedo
+            .as_ref()
+            .is_some_and(|buffer| buffer.size != buffer_dims)
+        {
+            self.albedo = None;
         }
-        match &self.normal {
-            None => {}
-            Some(buffer) => {
-                if buffer.size != buffer_dims {
-                    self.normal = None;
-                }
-            }
+        if self
+            .normal
+            .as_ref()
+            .is_some_and(|buffer| buffer.size != buffer_dims)
+        {
+            self.normal = None;
         }
         self.img_dims = (width, height, buffer_dims);
         self
@@ -360,7 +340,7 @@ impl<'a> RayTracing<'a> {
             oidnSetFilterInt(
                 self.handle,
                 b"quality\0" as *const _ as _,
-                self.filter_quality as i32,
+                self.filter_quality,
             );
 
             oidnCommitFilter(self.handle);
