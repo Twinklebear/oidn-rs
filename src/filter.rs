@@ -223,10 +223,12 @@ impl<'a> RayTracing<'a> {
     /// does not equal old width * old height
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
+
         let clear_albedo = self
             .albedo
             .as_ref()
             .is_some_and(|buffer| buffer.size != buffer_dims);
+
         let clear_normal = self
             .normal
             .as_ref()
@@ -238,12 +240,14 @@ impl<'a> RayTracing<'a> {
                 oidnUnsetFilterImage(self.handle, b"albedo\0" as *const _ as _);
             }
         }
-        if clear_albedo || clear_normal {
+
+        if clear_normal {
             self.normal = None;
             unsafe {
                 oidnUnsetFilterImage(self.handle, b"normal\0" as *const _ as _);
             }
         }
+
         self.img_dims = (width, height, buffer_dims);
         self
     }
