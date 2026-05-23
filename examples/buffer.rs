@@ -1,6 +1,6 @@
 extern crate rand;
 
-use rand::Rng;
+use rand::RngExt;
 
 const WIDTH: usize = 128;
 const HEIGHT: usize = 9;

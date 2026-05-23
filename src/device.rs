@@ -10,7 +10,7 @@ use std::{ffi::CStr, os::raw::c_char, ptr};
 /// other.
 ///
 /// While all API calls on a device are thread-safe, they may be serialized.
-/// Therefor, it is recommended to call from the same thread.
+/// Therefore, it is recommended to call from the same thread.
 pub struct Device(pub(crate) OIDNDevice, pub(crate) Arc<u8>);
 
 impl Device {
@@ -80,6 +80,13 @@ impl Device {
         } else {
             let msg = unsafe { CStr::from_ptr(err_msg).to_string_lossy().to_string() };
             Err((err.try_into().unwrap(), msg))
+        }
+    }
+
+    /// Waits until all asynchronous operations on the device have completed.
+    pub fn sync(&self) {
+        unsafe {
+            oidnSyncDevice(self.0);
         }
     }
 }

@@ -6,10 +6,9 @@ extern crate rayon;
 extern crate serde;
 
 use docopt::Docopt;
-use exr::prelude::rgba_image as rgb_exr;
+use exr::prelude::read_first_rgba_layer_from_file;
 use rayon::prelude::*;
 use serde::Deserialize;
-use std::f32;
 
 /// An example application that shows opening an HDR EXR image with optional
 /// additional normal and albedo EXR images and denoising it with OIDN.
@@ -76,29 +75,27 @@ impl EXRData {
             height,
         }
     }
-    fn set_pixel(&mut self, x: usize, y: usize, pixel: &rgb_exr::Pixel) {
+    fn set_pixel(&mut self, x: usize, y: usize, pixel: (f32, f32, f32, f32)) {
         let i = (y * self.width + x) * 3;
-        self.img[i] = pixel.red.to_f32();
-        self.img[i + 1] = pixel.green.to_f32();
-        self.img[i + 2] = pixel.blue.to_f32();
+        self.img[i] = pixel.0;
+        self.img[i + 1] = pixel.1;
+        self.img[i + 2] = pixel.2;
     }
 }
 
 /// Load an EXR file to an RGB f32 buffer
 fn load_exr(file: &str) -> EXRData {
-    let (_info, image) = rgb_exr::ImageInfo::read_pixels_from_file(
+    read_first_rgba_layer_from_file(
         file,
-        rgb_exr::read_options::high(),
-        |info: &rgb_exr::ImageInfo| -> EXRData {
-            EXRData::new(info.resolution.width(), info.resolution.height())
-        },
-        // set each pixel in the png buffer from the exr file
-        |image: &mut EXRData, pos: rgb_exr::Vec2<usize>, pixel: rgb_exr::Pixel| {
-            image.set_pixel(pos.x(), pos.y(), &pixel);
+        |resolution, _| -> EXRData { EXRData::new(resolution.width(), resolution.height()) },
+        |image: &mut EXRData, pos, pixel: (f32, f32, f32, f32)| {
+            image.set_pixel(pos.x(), pos.y(), pixel);
         },
     )
-    .unwrap();
-    image
+    .unwrap()
+    .layer_data
+    .channel_data
+    .pixels
 }
 
 fn main() {
