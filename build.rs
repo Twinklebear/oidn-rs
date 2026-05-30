@@ -1,6 +1,3 @@
-#[cfg(feature = "bundled")]
-use build_tools;
-
 #[cfg(not(feature = "bundled"))]
 use pkg_config::Config;
 use std::env;
@@ -12,11 +9,8 @@ fn main() {
     }
 
     #[cfg(feature = "bundled")]
-    {
-        configure_bundled();
-        return;
-    }
-
+    configure_bundled();
+    
     #[cfg(not(feature = "bundled"))]
     configure_system();
 }
