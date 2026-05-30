@@ -228,14 +228,14 @@ impl<'a> RayTracing<'a> {
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
 
-        if buffer_size_mismatch(&self.albedo, buffer_dims) {
+        if Self::buffer_size_mismatch(&self.albedo, buffer_dims) {
             self.albedo = None;
             unsafe {
                 oidnUnsetFilterImage(self.handle, b"albedo\0" as *const _ as _);
             }
         }
 
-        if buffer_size_mismatch(&self.normal, buffer_dims) {
+        if Self::buffer_size_mismatch(&self.normal, buffer_dims) {
             self.normal = None;
             unsafe {
                 oidnUnsetFilterImage(self.handle, b"normal\0" as *const _ as _);
