@@ -48,6 +48,14 @@ pub fn download_and_extract_oidn(root: &Path) -> Result<PathBuf> {
 
 #[cfg(feature = "bundled")]
 pub fn find_bundled_oidn_dir(root: &Path) -> Option<PathBuf> {
+    if let Some(dir) = env::var_os("OIDN_BUNDLED_DIR")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .filter(|dir| dir.is_dir())
+    {
+        return Some(dir);
+    }
+
     let version = package_version(root)?;
     let dirs = platform_package_suffixes()
         .iter()

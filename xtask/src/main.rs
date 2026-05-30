@@ -1,7 +1,6 @@
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 

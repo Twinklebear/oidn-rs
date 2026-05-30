@@ -28,11 +28,11 @@ jobs:
                 path: oidn-${{ env.OIDN_VERSION }}.x86_64.linux.tar.gz
                 key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-x86_64
             - name: Download and extract OIDN (Linux)
-              if: steps.cache-oidn.outputs.cache-hit != 'true'
               run: cargo run -p xtask -- download-oidn-package
             - name: Set OIDN env (Linux)
               run: |
                 echo "OIDN_DIR=$(pwd)/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
+                echo "OIDN_BUNDLED_DIR=$(pwd)/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
                 echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/oidn-${OIDN_VERSION}.x86_64.linux/lib" >> $GITHUB_ENV
             - run: rustup update
             - run: cargo build --all --all-targets
@@ -41,10 +41,12 @@ jobs:
             - name: Test bundled download and extraction (Linux)
               run: cargo test -p oidn --all-targets --features bundled
               env:
+                  OIDN_DIR: ""
                   LD_LIBRARY_PATH: ""
             - name: Lint bundled build (Linux)
               run: cargo clippy -p oidn --all-targets --features bundled -- -D warnings
               env:
+                  OIDN_DIR: ""
                   LD_LIBRARY_PATH: ""
             - run: cargo doc --all --no-deps --document-private-items
               env:
@@ -71,12 +73,13 @@ jobs:
                 path: oidn-${{ env.OIDN_VERSION }}.*.macos.tar.gz
                 key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-macos
             - name: Download and extract OIDN (macOS)
-              if: steps.cache-oidn.outputs.cache-hit != 'true'
               run: cargo run -p xtask -- download-oidn-package
             - name: Set OIDN env (macOS)
               run: |
                 # find extracted macOS package directory (arm64/x86_64)
-                dir=$(ls -d oidn-${OIDN_VERSION}.*.macos 2>/dev/null || true)
+                dir=$(ls -d oidn-${OIDN_VERSION}.*.macos 2>/dev/null | head -n 1)
+                test -n "$dir"
+                echo "OIDN_DIR=${{ github.workspace }}/$dir" >> $GITHUB_ENV
                 echo "OIDN_BUNDLED_DIR=${{ github.workspace }}/$dir" >> $GITHUB_ENV
                 echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${{ github.workspace }}/$dir/lib" >> $GITHUB_ENV
                 cp ${GITHUB_WORKSPACE}/$dir/lib/*dylib .
@@ -87,12 +90,12 @@ jobs:
               run: cargo build -p oidn --all-targets --features bundled
               env:
                   DYLD_LIBRARY_PATH: ""
-                  OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.arm64.macos
+                  OIDN_DIR: ""
             - name: Test bundled feature (macOS)
               run: cargo test -p oidn --all-targets --features bundled
               env:
                   DYLD_LIBRARY_PATH: ""
-                  OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.arm64.macos
+                  OIDN_DIR: ""
     build_windows:
         runs-on: windows-latest
         strategy:
@@ -112,15 +115,12 @@ jobs:
               with:
                 path: oidn-${{ env.OIDN_VERSION }}.x64.windows.zip
                 key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-x64-windows
-            - name: Ensure unzip tools (Windows)
-              if: steps.cache-oidn.outputs.cache-hit != 'true'
-              run: choco install 7zip -y
             - name: Download and extract OIDN (Windows)
-              if: steps.cache-oidn.outputs.cache-hit != 'true'
               run: cargo run -p xtask -- download-oidn-package
             - name: Set OIDN env (Windows)
               run: |
-                powershell -Command "${env:OIDN_DIR} = Join-Path $env:GITHUB_WORKSPACE \"oidn-${env:OIDN_VERSION}.x64.windows\"; [System.Environment]::SetEnvironmentVariable('OIDN_DIR', $env:OIDN_DIR, 'Process');"
+                echo "OIDN_DIR=${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows" | Out-File -FilePath $env:GITHUB_ENV -Append
+                echo "OIDN_BUNDLED_DIR=${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows" | Out-File -FilePath $env:GITHUB_ENV -Append
             - run: rustup update
             - run: |
                 $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
@@ -131,9 +131,9 @@ jobs:
             - name: Build bundled feature (Windows)
               run: cargo build -p oidn --all-targets --features bundled
               env:
-                  OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.x64.windows
+                  OIDN_DIR: ""
             - name: Test bundled feature (Windows)
               run: cargo test -p oidn --all-targets --features bundled
               env:
-                  OIDN_BUNDLED_DIR: ${{ github.workspace }}/oidn-${{ env.OIDN_VERSION }}.x64.windows
+                  OIDN_DIR: ""
 
