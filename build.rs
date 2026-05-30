@@ -10,7 +10,7 @@ fn main() {
 
     #[cfg(feature = "bundled")]
     configure_bundled();
-    
+
     #[cfg(not(feature = "bundled"))]
     configure_system();
 }
