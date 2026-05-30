@@ -11,6 +11,7 @@ Crate version numbers track the OIDN version they correspond to.
 Rust docs can be found [here](https://docs.rs/oidn).
 
 Open Image Denoise documentation can be found [here](https://openimagedenoise.github.io/documentation.html).
+
 ## Development tasks
 
 Repository maintenance commands live in the Rust `xtask` tool instead of

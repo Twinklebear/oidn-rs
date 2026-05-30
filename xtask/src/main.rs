@@ -1,6 +1,7 @@
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
@@ -14,11 +15,13 @@ Usage:
   cargo run -p xtask -- build-examples [cargo-options...]
   cargo run -p xtask -- build-test [cargo-options...]
   cargo run -p xtask -- generate-sys-bindings [oidn.h] [src/sys.rs]
+  cargo run -p xtask -- download-oidn-package
 
 Aliases:
   build-examples-linux-mac -> build-examples
   build-test-mac           -> build-test
   build-test-windows       -> build-test
+  download-oidn -> download-oidn-package
 ";
 
 fn main() {
@@ -48,6 +51,7 @@ fn run() -> Result<()> {
         "build-examples" | "build-examples-linux-mac" => build_examples(&root, &args)?,
         "build-test" | "build-test-mac" | "build-test-windows" => build_test(&root, &args)?,
         "generate-sys-bindings" => generate_sys_bindings(&root, &args)?,
+        "download-oidn-package" | "download-oidn" => download_oidn_package(&root, &args)?,
         other => return Err(format!("unknown xtask command `{other}`\n\n{HELP}").into()),
     }
 
@@ -94,6 +98,12 @@ fn generate_sys_bindings(root: &Path, args: &[OsString]) -> Result<()> {
     let bindgen_args = bindgen_args(&header, &output);
     let envs = bindgen_environment();
     run_command(root, "bindgen", &bindgen_args, &envs)
+}
+
+fn download_oidn_package(root: &Path, _args: &[OsString]) -> Result<()> {
+    let package_dir = build_tools::download_and_extract_oidn(root)?;
+    println!("OIDN package available at {}", package_dir.display());
+    Ok(())
 }
 
 fn bindgen_args(header: &Path, output: &Path) -> Vec<OsString> {
