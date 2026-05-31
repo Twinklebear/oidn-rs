@@ -35,7 +35,7 @@ a usable `libclang` installation to be available.
 
 When bumping the Open Image Denoise version, update the crate version,
 `.github/workflows/main.yml`'s `OIDN_VERSION`, and the bundled package
-SHA-256 values in `build.rs`. The bundled CI job verifies the host archive
+SHA-256 values in `build-tools/src/lib.rs`. The bundled CI job verifies the host archive
 against the pinned checksum.
 
 ## Bundled OIDN binaries

@@ -4,6 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
+use build_tools::{non_empty_env_path, oidn_dir, oidn_package_dirs, package_version};
+
 type DynError = Box<dyn std::error::Error>;
 type Result<T> = std::result::Result<T, DynError>;
 
@@ -216,13 +218,6 @@ fn header_candidates(root: &Path) -> Vec<PathBuf> {
     candidates
 }
 
-fn oidn_package_dirs(root: &Path, version: &str) -> Vec<PathBuf> {
-    platform_package_suffixes()
-        .iter()
-        .map(|suffix| root.join(format!("oidn-{version}.{suffix}")))
-        .collect()
-}
-
 fn header_candidates_for_oidn_dir(dir: PathBuf) -> Vec<PathBuf> {
     vec![
         dir.join("include").join("OpenImageDenoise").join("oidn.h"),
@@ -252,58 +247,6 @@ fn collect_target_oidn_headers(dir: &Path, headers: &mut Vec<PathBuf>) {
         {
             headers.push(path);
         }
-    }
-}
-
-fn oidn_dir(root: &Path) -> Option<PathBuf> {
-    if let Some(dir) = non_empty_env_path("OIDN_DIR") {
-        return Some(dir);
-    }
-
-    let version = env::var("OIDN_VERSION")
-        .ok()
-        .filter(|version| !version.is_empty())
-        .or_else(|| package_version(root))?;
-
-    oidn_package_dirs(root, &version)
-        .into_iter()
-        .find(|dir| dir.is_dir())
-}
-
-fn non_empty_env_path(name: &str) -> Option<PathBuf> {
-    env::var_os(name)
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-}
-
-fn package_version(root: &Path) -> Option<String> {
-    let manifest = fs::read_to_string(root.join("Cargo.toml")).ok()?;
-    let mut in_package = false;
-
-    for line in manifest.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_package = trimmed == "[package]";
-            continue;
-        }
-        if !in_package || !trimmed.starts_with("version") {
-            continue;
-        }
-
-        let (_, value) = trimmed.split_once('=')?;
-        return Some(value.trim().trim_matches('"').to_string());
-    }
-
-    None
-}
-
-fn platform_package_suffixes() -> &'static [&'static str] {
-    match (env::consts::OS, env::consts::ARCH) {
-        ("linux", "x86_64") => &["x86_64.linux"],
-        ("macos", "aarch64") => &["arm64.macos"],
-        ("macos", "x86_64") => &["x86_64.macos"],
-        ("windows", "x86_64") => &["x64.windows", "x64.vc14.windows"],
-        _ => &[],
     }
 }
 

@@ -13,11 +13,38 @@ use tar::Archive;
 #[cfg(feature = "bundled")]
 use zip::ZipArchive;
 
-type DynError = Box<dyn std::error::Error>;
-type Result<T> = std::result::Result<T, DynError>;
+pub fn oidn_dir(root: &Path) -> Option<PathBuf> {
+    if let Some(dir) = non_empty_env_path("OIDN_DIR") {
+        return Some(dir);
+    }
+
+    let version = env::var("OIDN_VERSION")
+        .ok()
+        .filter(|version| !version.is_empty())
+        .or_else(|| package_version(root))?;
+
+    oidn_package_dirs(root, &version)
+        .into_iter()
+        .find(|dir| dir.is_dir())
+}
+
+pub fn oidn_package_dirs(root: &Path, version: &str) -> Vec<PathBuf> {
+    platform_package_suffixes()
+        .iter()
+        .map(|suffix| root.join(format!("oidn-{version}.{suffix}")))
+        .collect()
+}
+
+pub fn non_empty_env_path(name: &str) -> Option<PathBuf> {
+    env::var_os(name)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
 
 #[cfg(feature = "bundled")]
-pub fn download_and_extract_oidn(root: &Path) -> Result<PathBuf> {
+pub fn download_and_extract_oidn(
+    root: &Path,
+) -> std::result::Result<PathBuf, Box<dyn std::error::Error>> {
     let version = env::var("OIDN_VERSION")
         .ok()
         .filter(|v| !v.is_empty())
@@ -65,7 +92,7 @@ pub fn find_bundled_oidn_dir(root: &Path) -> Option<PathBuf> {
 }
 
 #[cfg(feature = "bundled")]
-fn package_asset_info() -> Result<PackageAssetInfo> {
+fn package_asset_info() -> std::result::Result<PackageAssetInfo, Box<dyn std::error::Error>> {
     match (env::consts::OS, env::consts::ARCH) {
         ("linux", "x86_64") => Ok(PackageAssetInfo {
             package_suffix: "x86_64.linux",
@@ -99,7 +126,11 @@ struct PackageAssetInfo {
 }
 
 #[cfg(feature = "bundled")]
-fn ensure_archive(archive_path: &Path, url: &str, expected_sha: &str) -> Result<()> {
+fn ensure_archive(
+    archive_path: &Path,
+    url: &str,
+    expected_sha: &str,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
     if archive_path.exists() {
         if verify_sha256(archive_path, expected_sha)? {
             println!("Using cached archive {}", archive_path.display());
@@ -120,7 +151,10 @@ fn ensure_archive(archive_path: &Path, url: &str, expected_sha: &str) -> Result<
 }
 
 #[cfg(feature = "bundled")]
-fn download_archive(archive_path: &Path, url: &str) -> Result<()> {
+fn download_archive(
+    archive_path: &Path,
+    url: &str,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
     println!("Downloading {}", url);
     let response = ureq::get(url).call()?;
     let mut reader = response.into_parts().1.into_reader();
@@ -130,7 +164,10 @@ fn download_archive(archive_path: &Path, url: &str) -> Result<()> {
 }
 
 #[cfg(feature = "bundled")]
-fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool> {
+fn verify_sha256(
+    path: &Path,
+    expected_hex: &str,
+) -> std::result::Result<bool, Box<dyn std::error::Error>> {
     let mut file = fs::File::open(path)?;
     let mut hasher = Sha256::new();
     let mut buffer = [0u8; 8192];
@@ -150,28 +187,108 @@ fn verify_sha256(path: &Path, expected_hex: &str) -> Result<bool> {
 }
 
 #[cfg(feature = "bundled")]
-fn extract_archive(root: &Path, archive_path: &Path) -> Result<()> {
+fn extract_archive(
+    root: &Path,
+    archive_path: &Path,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let name = archive_path
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or("invalid archive name")?;
+
     if name.ends_with(".zip") {
-        let file = fs::File::open(archive_path)?;
-        let mut archive = ZipArchive::new(file)?;
-        archive.extract(root)?;
-        Ok(())
+        extract_zip_archive(root, archive_path)
     } else if name.ends_with(".tar.gz") {
-        let file = fs::File::open(archive_path)?;
-        let decoder = GzDecoder::new(file);
-        let mut archive = Archive::new(decoder);
-        archive.unpack(root)?;
-        Ok(())
+        extract_tar_gz_archive(root, archive_path)
     } else {
         Err("unsupported archive format".into())
     }
 }
 
-fn package_version(root: &Path) -> Option<String> {
+#[cfg(feature = "bundled")]
+fn extract_zip_archive(
+    root: &Path,
+    archive_path: &Path,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let file = fs::File::open(archive_path)?;
+    let mut archive = ZipArchive::new(file)?;
+
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index)?;
+        let Some(enclosed_name) = entry.enclosed_name().as_deref().map(Path::to_path_buf) else {
+            return Err(format!("zip archive contains unsafe path: {}", entry.name()).into());
+        };
+
+        let output_path = safe_archive_path(root, &enclosed_name)?;
+
+        if entry.is_dir() {
+            fs::create_dir_all(&output_path)?;
+            continue;
+        }
+
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let mut output = fs::File::create(&output_path)?;
+        io::copy(&mut entry, &mut output)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "bundled")]
+fn extract_tar_gz_archive(
+    root: &Path,
+    archive_path: &Path,
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let file = fs::File::open(archive_path)?;
+    let decoder = GzDecoder::new(file);
+    let mut archive = Archive::new(decoder);
+
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let entry_path = entry.path()?.into_owned();
+        let output_path = safe_archive_path(root, &entry_path)?;
+
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        entry.unpack(&output_path)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "bundled")]
+fn safe_archive_path(
+    root: &Path,
+    entry_name: &Path,
+) -> std::result::Result<PathBuf, Box<dyn std::error::Error>> {
+    use std::path::Component;
+
+    if entry_name.is_absolute() {
+        return Err(format!("archive entry has absolute path: {}", entry_name.display()).into());
+    }
+
+    if entry_name.components().any(|component| {
+        matches!(
+            component,
+            Component::ParentDir | Component::Prefix(_) | Component::RootDir
+        )
+    }) {
+        return Err(format!(
+            "archive entry escapes extraction directory: {}",
+            entry_name.display()
+        )
+        .into());
+    }
+
+    Ok(root.join(entry_name))
+}
+
+pub fn package_version(root: &Path) -> Option<String> {
     let manifest = fs::read_to_string(root.join("Cargo.toml")).ok()?;
     let mut in_package = false;
     for line in manifest.lines() {
@@ -189,7 +306,7 @@ fn package_version(root: &Path) -> Option<String> {
     None
 }
 
-fn platform_package_suffixes() -> &'static [&'static str] {
+pub fn platform_package_suffixes() -> &'static [&'static str] {
     match (env::consts::OS, env::consts::ARCH) {
         ("linux", "x86_64") => &["x86_64.linux"],
         ("macos", "aarch64") => &["arm64.macos"],
