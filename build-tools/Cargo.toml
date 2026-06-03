@@ -1,0 +1,21 @@
+[package]
+name = "build-tools"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+ureq = { version = "3.3", optional = true }
+sha2 = { version = "0.11", optional = true }
+flate2 = { version = "1.1", optional = true }
+tar = { version = "0.4", optional = true }
+zip = { version = "8.6", default-features = false, features = [
+    "deflate",
+], optional = true }
+
+[features]
+bundled = ["ureq", "sha2", "flate2", "tar", "zip"]
+
+[lib]
+name = "build_tools"
+path = "src/lib.rs"

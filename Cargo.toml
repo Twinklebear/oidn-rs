@@ -11,21 +11,34 @@ readme = "README.md"
 license = "MIT"
 description = "A wrapper for the Intel OpenImageDenoise image denoising library."
 keywords = ["openimagedenoise", "denoise", "denoising"]
-exclude = [
-    ".travis.yml",
-    "*.png",
-    "*.jpg",
-    ".gitignore",
-    "examples/*",
-    "scripts/*",
+include = [
+    "/Cargo.toml",
+    "/LICENSE.md",
+    "/README.md",
+    "/build.rs",
+    "/src/**",
+    "/tests/**",
+    "/examples/*.rs",
+    "/build-tools/Cargo.toml",
+    "/build-tools/src/**",
 ]
 links = "OpenImageDenoise"
+
+[workspace]
+members = [".", "xtask", "build-tools"]
+default-members = ["."]
+resolver = "3"
+
+[features]
+default = []
+bundled = ["build-tools/bundled"]
 
 [dependencies]
 num_enum = "0.7.6"
 
 [build-dependencies]
 pkg-config = "0.3.33"
+build-tools = { path = "build-tools" }
 
 [dev-dependencies]
 rand = "0.10.1"

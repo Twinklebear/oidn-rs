@@ -219,29 +219,23 @@ impl<'a> RayTracing<'a> {
         self
     }
 
+    fn buffer_size_mismatch(buffer: &Option<Buffer>, expected: usize) -> bool {
+        buffer.as_ref().is_some_and(|b| b.size != expected)
+    }
+
     /// sets the dimensions of the denoising image, if new width * new height
     /// does not equal old width * old height
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
 
-        let clear_albedo = self
-            .albedo
-            .as_ref()
-            .is_some_and(|buffer| buffer.size != buffer_dims);
-
-        let clear_normal = self
-            .normal
-            .as_ref()
-            .is_some_and(|buffer| buffer.size != buffer_dims);
-
-        if clear_albedo {
+        if Self::buffer_size_mismatch(&self.albedo, buffer_dims) {
             self.albedo = None;
             unsafe {
                 oidnUnsetFilterImage(self.handle, b"albedo\0" as *const _ as _);
             }
         }
 
-        if clear_normal {
+        if Self::buffer_size_mismatch(&self.normal, buffer_dims) {
             self.normal = None;
             unsafe {
                 oidnUnsetFilterImage(self.handle, b"normal\0" as *const _ as _);

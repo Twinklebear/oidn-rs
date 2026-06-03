@@ -25,19 +25,32 @@ jobs:
               id: cache-oidn
               uses: actions/cache@v4
               with:
-                path: oidn-${{ env.OIDN_VERSION }}.x86_64.linux.tar.gz
+                path: |
+                  oidn-${{ env.OIDN_VERSION }}.x86_64.linux.tar.gz
+                  oidn-${{ env.OIDN_VERSION }}.x86_64.linux
                 key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-x86_64
-            - name: Download OIDN (Linux)
-              if: steps.cache-oidn.outputs.cache-hit != 'true'
-              run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
-            - run: tar -xf oidn-${OIDN_VERSION}.x86_64.linux.tar.gz
-            - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
-            - run: echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
+            - name: ensure OIDN package (Linux)
+              run: cargo run -p xtask -- download-oidn-package
+            - name: Set OIDN env (Linux)
+              run: |
+                echo "OIDN_DIR=$(pwd)/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
+                echo "OIDN_BUNDLED_DIR=$(pwd)/oidn-${OIDN_VERSION}.x86_64.linux" >> $GITHUB_ENV
+                echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/oidn-${OIDN_VERSION}.x86_64.linux/lib" >> $GITHUB_ENV
             - run: rustup update
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
             - run: cargo test --all --all-targets
-            - run: cargo doc --all --no-deps --document-private-items
+            - name: Test bundled download and extraction (Linux)
+              run: cargo test -p oidn --all-targets --features bundled
+              env:
+                  OIDN_DIR: ""
+                  LD_LIBRARY_PATH: ""
+            - name: Lint bundled build (Linux)
+              run: cargo clippy -p oidn --all-targets --features bundled -- -D warnings
+              env:
+                  OIDN_DIR: ""
+                  LD_LIBRARY_PATH: ""
+            - run: cargo doc --workspace --exclude xtask --exclude build-tools --no-deps --document-private-items
               env:
                   RUSTDOCFLAGS: -Dwarnings
             - name: Format Core
@@ -59,18 +72,34 @@ jobs:
               id: cache-oidn
               uses: actions/cache@v4
               with:
-                path: oidn-${{ env.OIDN_VERSION }}.arm64.macos.tar.gz
-                key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-arm64
-            - name: Download OIDN (macOS)
-              if: steps.cache-oidn.outputs.cache-hit != 'true'
-              run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${OIDN_VERSION}/oidn-${OIDN_VERSION}.arm64.macos.tar.gz
-            - run: tar -xf oidn-${OIDN_VERSION}.arm64.macos.tar.gz
-            - run: echo "OIDN_DIR=`pwd`/oidn-${OIDN_VERSION}.arm64.macos" >> $GITHUB_ENV
-            - run: echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${OIDN_DIR}/lib" >> $GITHUB_ENV
-            - run: cp $OIDN_DIR/lib/*dylib .
+                path: |
+                  oidn-${{ env.OIDN_VERSION }}.*.macos.tar.gz
+                  oidn-${{ env.OIDN_VERSION }}.*.macos
+                key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-macos
+            - name: ensure OIDN package (macOS)
+              run: cargo run -p xtask -- download-oidn-package
+            - name: Set OIDN env (macOS)
+              run: |
+                # find extracted macOS package directory (arm64/x86_64)
+                dir=$(ls -d oidn-${OIDN_VERSION}.*.macos 2>/dev/null | head -n 1)
+                test -n "$dir"
+                echo "OIDN_DIR=${{ github.workspace }}/$dir" >> $GITHUB_ENV
+                echo "OIDN_BUNDLED_DIR=${{ github.workspace }}/$dir" >> $GITHUB_ENV
+                echo "DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:${{ github.workspace }}/$dir/lib" >> $GITHUB_ENV
+                cp ${GITHUB_WORKSPACE}/$dir/lib/*dylib .
             - run: rustup update
             - run: cargo build --all --all-targets
             - run: cargo clippy --all --all-targets -- -D warnings
+            - name: Build bundled feature (macOS)
+              run: cargo build -p oidn --all-targets --features bundled
+              env:
+                  DYLD_LIBRARY_PATH: ""
+                  OIDN_DIR: ""
+            - name: Test bundled feature (macOS)
+              run: cargo test -p oidn --all-targets --features bundled
+              env:
+                  DYLD_LIBRARY_PATH: ""
+                  OIDN_DIR: ""
     build_windows:
         runs-on: windows-latest
         strategy:
@@ -88,15 +117,16 @@ jobs:
               id: cache-oidn
               uses: actions/cache@v4
               with:
-                path: oidn-${{ env.OIDN_VERSION }}.x64.windows.zip
+                path: |
+                  oidn-${{ env.OIDN_VERSION }}.x64.windows.zip
+                  oidn-${{ env.OIDN_VERSION }}.x64.windows
                 key: ${{ runner.os }}-oidn-${{ env.OIDN_VERSION }}-x64-windows
-            - name: Install wget (Windows)
-              if: steps.cache-oidn.outputs.cache-hit != 'true'
-              run: choco install wget
-            - name: Download OIDN (Windows)
-              if: steps.cache-oidn.outputs.cache-hit != 'true'
-              run: wget https://github.com/OpenImageDenoise/oidn/releases/download/v${env:OIDN_VERSION}/oidn-${env:OIDN_VERSION}.x64.windows.zip
-            - run: 7z x oidn-${env:OIDN_VERSION}.x64.windows.zip -y
+            - name: ensure OIDN package (Windows)
+              run: cargo run -p xtask -- download-oidn-package
+            - name: Set OIDN env (Windows)
+              run: |
+                echo "OIDN_DIR=${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows" | Out-File -FilePath $env:GITHUB_ENV -Append
+                echo "OIDN_BUNDLED_DIR=${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows" | Out-File -FilePath $env:GITHUB_ENV -Append
             - run: rustup update
             - run: |
                 $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
@@ -104,4 +134,12 @@ jobs:
             - run: |
                 $env:OIDN_DIR="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/"
                 cargo clippy --all --all-targets -- -D warnings
+            - name: Build bundled feature (Windows)
+              run: cargo build -p oidn --all-targets --features bundled
+              env:
+                  OIDN_DIR: ""
+            - name: Test bundled feature (Windows)
+              run: cargo test -p oidn --all-targets --features bundled
+              env:
+                  OIDN_DIR: ""
 

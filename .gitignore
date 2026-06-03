@@ -12,3 +12,8 @@ Cargo.lock
 *.dll
 *.out
 .vscode/
+
+
+oidn-*.tar.gz
+oidn-*.zip
+oidn-*/
