@@ -50,7 +50,7 @@ jobs:
               env:
                   OIDN_DIR: ""
                   LD_LIBRARY_PATH: ""
-            - run: cargo doc --workspace --exclude xtask --exclude build-tools --no-deps --document-private-items
+            - run: cargo doc --workspace --exclude xtask --no-deps --document-private-items
               env:
                   RUSTDOCFLAGS: -Dwarnings
             - name: Format Core

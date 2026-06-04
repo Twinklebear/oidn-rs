@@ -1,7 +1,10 @@
-#[cfg(not(feature = "bundled"))]
-use pkg_config::Config;
 use std::env;
 use std::path::PathBuf;
+
+#[cfg(not(feature = "bundled"))]
+use pkg_config::Config;
+
+include!("shared/helper.rs");
 
 fn main() {
     if env::var("DOCS_RS").is_ok() {
@@ -19,7 +22,7 @@ fn main() {
 fn configure_system() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
-    if let Some(dir) = build_tools::oidn_dir(&root) {
+    if let Some(dir) = oidn_dir(&root) {
         let lib_path = dir.join("lib");
 
         println!("cargo:rerun-if-env-changed=OIDN_DIR");
@@ -54,9 +57,9 @@ fn configure_system() {
 fn configure_bundled() -> Result<(), Box<dyn std::error::Error>> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
-    let bundled = match build_tools::find_bundled_oidn_dir(&root) {
+    let bundled = match find_bundled_oidn_dir(&root) {
         Some(dir) => dir,
-        None => build_tools::download_and_extract_oidn(&root)?,
+        None => download_and_extract_oidn(&root)?,
     };
 
     let lib_path = bundled.join("lib");

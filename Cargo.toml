@@ -16,29 +16,34 @@ include = [
     "/LICENSE.md",
     "/README.md",
     "/build.rs",
+    "/shared/helper.rs",
     "/src/**",
     "/tests/**",
     "/examples/*.rs",
-    "/build-tools/Cargo.toml",
-    "/build-tools/src/**",
 ]
 links = "OpenImageDenoise"
 
 [workspace]
-members = [".", "xtask", "build-tools"]
+members = [".", "xtask"]
 default-members = ["."]
 resolver = "3"
 
 [features]
-default = []
-bundled = ["build-tools/bundled"]
+default = ["pkg-config"]
+bundled = ["ureq", "sha2", "flate2", "tar", "zip"]
 
 [dependencies]
 num_enum = "0.7.6"
 
 [build-dependencies]
-pkg-config = "0.3.33"
-build-tools = { path = "build-tools" }
+ureq = { version = "3.3", optional = true }
+sha2 = { version = "0.11", optional = true }
+flate2 = { version = "1.1", optional = true }
+tar = { version = "0.4", optional = true }
+zip = { version = "8.6", default-features = false, features = [
+    "deflate",
+], optional = true }
+pkg-config = { version = "0.3.33", optional = true }
 
 [dev-dependencies]
 rand = "0.10.1"

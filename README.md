@@ -35,7 +35,7 @@ a usable `libclang` installation to be available.
 
 When bumping the Open Image Denoise version, update the crate version,
 `.github/workflows/main.yml`'s `OIDN_VERSION`, and the bundled package
-SHA-256 values in `build-tools/src/lib.rs`. The bundled CI job verifies the host archive
+SHA-256 values in `helpers/shared.rs`. The bundled CI job verifies the host archive
 against the pinned checksum.
 
 ## Bundled OIDN binaries
@@ -46,7 +46,7 @@ build script download the matching official Open Image Denoise binary package
 and link against it:
 
 ```toml
-oidn = { version = "2.4.1", features = ["bundled"] }
+oidn = { version = "2.5.0", features = ["bundled"] }
 ```
 
 The bundled feature supports the official OIDN packages for x86_64 Linux,
@@ -85,7 +85,7 @@ fn main() {
         .expect("Filter config error!");
 
     if let Err(e) = device.get_error() {
-        println!("Error denosing image: {}", e.1);
+        println!("Error denoising image: {}", e.1);
     }
 
     // Save out or display filter_output image

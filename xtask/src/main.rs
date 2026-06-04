@@ -1,13 +1,18 @@
+#[cfg(not(feature = "bundled"))]
+compile_error!(
+    "bundled feature is required because of the shared code in `shared/helper.rs` that is used by both build.rs and xtask/src/main.rs. If you want to run xtask without the bundled feature, you can set `OIDN_DIR` or `OIDN_BUNDLED_DIR` environment variable to point to your local OpenImageDenoise installation."
+);
+
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
-use build_tools::{non_empty_env_path, oidn_dir, oidn_package_dirs, package_version};
-
 type DynError = Box<dyn std::error::Error>;
-type Result<T> = std::result::Result<T, DynError>;
+type DynResult<T> = std::result::Result<T, DynError>;
+
+include!("../../shared/helper.rs");
 
 const HELP: &str = "\
 oidn-rs development tasks
@@ -32,7 +37,7 @@ fn main() {
     }
 }
 
-fn run() -> Result<()> {
+fn run() -> DynResult<()> {
     let root = workspace_root()?;
     let mut args = env::args_os();
     let _program = args.next();
@@ -59,12 +64,12 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-fn build_examples(root: &Path, extra_args: &[OsString]) -> Result<()> {
+fn build_examples(root: &Path, extra_args: &[OsString]) -> DynResult<()> {
     let envs = oidn_environment(root)?;
     run_cargo(root, &["build", "--examples"], extra_args, &envs)
 }
 
-fn build_test(root: &Path, extra_args: &[OsString]) -> Result<()> {
+fn build_test(root: &Path, extra_args: &[OsString]) -> DynResult<()> {
     let envs = oidn_environment(root)?;
     println!("Building oidn-rs");
     run_cargo(root, &["build"], extra_args, &envs)?;
@@ -74,7 +79,7 @@ fn build_test(root: &Path, extra_args: &[OsString]) -> Result<()> {
     run_cargo(root, &["test", "--examples"], extra_args, &envs)
 }
 
-fn generate_sys_bindings(root: &Path, args: &[OsString]) -> Result<()> {
+fn generate_sys_bindings(root: &Path, args: &[OsString]) -> DynResult<()> {
     if args.len() > 2 {
         return Err(
             "usage: cargo run -p xtask -- generate-sys-bindings [oidn.h] [src/sys.rs]".into(),
@@ -96,33 +101,13 @@ fn generate_sys_bindings(root: &Path, args: &[OsString]) -> Result<()> {
         output.display()
     );
 
-    let bindgen_args = bindgen_args(&header, &output);
-    let envs = bindgen_environment();
-    run_command(root, "bindgen", &bindgen_args, &envs)
+    generate_bindings(&header, &output)
 }
 
-fn download_oidn_package(root: &Path, _args: &[OsString]) -> Result<()> {
-    let package_dir = build_tools::download_and_extract_oidn(root)?;
+fn download_oidn_package(root: &Path, _args: &[OsString]) -> DynResult<()> {
+    let package_dir = download_and_extract_oidn(root)?;
     println!("OIDN package available at {}", package_dir.display());
     Ok(())
-}
-
-fn bindgen_args(header: &Path, output: &Path) -> Vec<OsString> {
-    vec![
-        header.as_os_str().to_os_string(),
-        "-o".into(),
-        output.as_os_str().to_os_string(),
-        "--no-doc-comments".into(),
-        "--distrust-clang-mangling".into(),
-        "--allowlist-function".into(),
-        "oidn.*".into(),
-        "--allowlist-type".into(),
-        "OIDN.*".into(),
-        "--".into(),
-        "-x".into(),
-        "c++".into(),
-        "-std=c++11".into(),
-    ]
 }
 
 fn run_cargo(
@@ -130,7 +115,7 @@ fn run_cargo(
     args: &[&str],
     extra_args: &[OsString],
     envs: &[(String, OsString)],
-) -> Result<()> {
+) -> DynResult<()> {
     let mut cargo_args = args.iter().map(OsString::from).collect::<Vec<_>>();
     cargo_args.extend(extra_args.iter().cloned());
     run_command(root, "cargo", &cargo_args, envs)
@@ -141,7 +126,7 @@ fn run_command(
     program: &str,
     args: &[OsString],
     envs: &[(String, OsString)],
-) -> Result<()> {
+) -> DynResult<()> {
     println!("running: {}", format_command(program, args));
 
     let mut command = ProcessCommand::new(program);
@@ -163,7 +148,7 @@ fn run_command(
     }
 }
 
-fn oidn_environment(root: &Path) -> Result<Vec<(String, OsString)>> {
+fn oidn_environment(root: &Path) -> DynResult<Vec<(String, OsString)>> {
     let Some(oidn_dir) = oidn_dir(root) else {
         return Ok(Vec::new());
     };
@@ -183,7 +168,7 @@ fn oidn_environment(root: &Path) -> Result<Vec<(String, OsString)>> {
     Ok(envs)
 }
 
-fn find_oidn_header(root: &Path) -> Result<PathBuf> {
+fn find_oidn_header(root: &Path) -> DynResult<PathBuf> {
     header_candidates(root)
         .into_iter()
         .find(|path| path.is_file())
@@ -259,25 +244,12 @@ fn runtime_library_path(oidn_dir: &Path) -> Option<(&'static str, PathBuf)> {
     }
 }
 
-fn appended_path(variable: &str, path: &Path) -> Result<OsString> {
+fn appended_path(variable: &str, path: &Path) -> DynResult<OsString> {
     let mut paths = env::var_os(variable)
         .map(|value| env::split_paths(&value).collect::<Vec<_>>())
         .unwrap_or_default();
     paths.push(path.to_path_buf());
     env::join_paths(paths).map_err(|error| error.into())
-}
-
-fn bindgen_environment() -> Vec<(String, OsString)> {
-    if env::var_os("LIBCLANG_PATH").is_some() {
-        return Vec::new();
-    }
-
-    let Some(path) = detect_libclang_dir() else {
-        return Vec::new();
-    };
-
-    println!("Using LIBCLANG_PATH={}", path.display());
-    vec![("LIBCLANG_PATH".to_string(), path.into_os_string())]
 }
 
 fn detect_libclang_dir() -> Option<PathBuf> {
@@ -296,22 +268,29 @@ fn llvm_env_dirs() -> Vec<PathBuf> {
         .collect()
 }
 
+#[cfg(target_os = "windows")]
 fn default_llvm_dirs() -> Vec<PathBuf> {
-    if env::consts::OS == "windows" {
-        vec![
-            PathBuf::from(r"C:\Program Files\LLVM\bin"),
-            PathBuf::from(r"C:\Program Files\LLVM\lib"),
-            PathBuf::from(r"C:\Program Files (x86)\LLVM\bin"),
-            PathBuf::from(r"C:\Program Files (x86)\LLVM\lib"),
-        ]
-    } else {
-        vec![
-            PathBuf::from("/usr/lib"),
-            PathBuf::from("/usr/local/lib"),
-            PathBuf::from("/opt/homebrew/opt/llvm/lib"),
-            PathBuf::from("/usr/local/opt/llvm/lib"),
-        ]
-    }
+    vec![
+        PathBuf::from(r"C:\Program Files\LLVM\bin"),
+        PathBuf::from(r"C:\Program Files\LLVM\lib"),
+        PathBuf::from(r"C:\Program Files (x86)\LLVM\bin"),
+        PathBuf::from(r"C:\Program Files (x86)\LLVM\lib"),
+    ]
+}
+
+#[cfg(target_os = "macos")]
+fn default_llvm_dirs() -> Vec<PathBuf> {
+    vec![
+        PathBuf::from("/usr/lib"),
+        PathBuf::from("/usr/local/lib"),
+        PathBuf::from("/opt/homebrew/opt/llvm/lib"),
+        PathBuf::from("/usr/local/opt/llvm/lib"),
+    ]
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn default_llvm_dirs() -> Vec<PathBuf> {
+    vec![PathBuf::from("/usr/lib"), PathBuf::from("/usr/local/lib")]
 }
 
 fn python_libclang_dirs() -> Vec<PathBuf> {
@@ -349,7 +328,7 @@ fn libclang_file_names() -> &'static [&'static str] {
     }
 }
 
-fn workspace_root() -> Result<PathBuf> {
+fn workspace_root() -> DynResult<PathBuf> {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
         .parent()
@@ -372,4 +351,32 @@ fn format_command(program: &str, args: &[OsString]) -> String {
         .map(|arg| arg.to_string_lossy().into_owned())
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn generate_bindings(header: &Path, output: &Path) -> DynResult<()> {
+    if let Some(path) = detect_libclang_dir()
+        && env::var_os("LIBCLANG_PATH").is_none() {
+            println!("Using LIBCLANG_PATH={}", path.display());
+            unsafe {
+                env::set_var("LIBCLANG_PATH", path);
+            }
+        }
+
+    let bindings = bindgen::Builder::default()
+        .header(header.to_string_lossy())
+        .clang_arg("-x")
+        .clang_arg("c++")
+        .clang_arg("-std=c++11")
+        .generate_comments(false)
+        .trust_clang_mangling(false)
+        .allowlist_function("oidn.*")
+        .allowlist_type("OIDN.*")
+        .generate()
+        .map_err(|error| format!("failed to generate bindings: {error}"))?;
+
+    bindings
+        .write_to_file(output)
+        .map_err(|error| format!("failed to write bindings to {}: {error}", output.display()))?;
+
+    Ok(())
 }
