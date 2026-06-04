@@ -1,6 +1,6 @@
 #[cfg(not(feature = "bundled"))]
 compile_error!(
-    "bundled feature is required because of the shared code in `shared/helper.rs` that is used by both build.rs and xtask/src/main.rs. If you want to run xtask without the bundled feature, you can set `OIDN_DIR` or `OIDN_BUNDLED_DIR` environment variable to point to your local OpenImageDenoise installation."
+    "bundled feature is required because of the shared code in `shared/helper.rs`, TODO remove the bundled feature from helper.rs"
 );
 
 use std::env;
@@ -355,12 +355,13 @@ fn format_command(program: &str, args: &[OsString]) -> String {
 
 fn generate_bindings(header: &Path, output: &Path) -> DynResult<()> {
     if let Some(path) = detect_libclang_dir()
-        && env::var_os("LIBCLANG_PATH").is_none() {
-            println!("Using LIBCLANG_PATH={}", path.display());
-            unsafe {
-                env::set_var("LIBCLANG_PATH", path);
-            }
+        && env::var_os("LIBCLANG_PATH").is_none()
+    {
+        println!("Using LIBCLANG_PATH={}", path.display());
+        unsafe {
+            env::set_var("LIBCLANG_PATH", path);
         }
+    }
 
     let bindings = bindgen::Builder::default()
         .header(header.to_string_lossy())
