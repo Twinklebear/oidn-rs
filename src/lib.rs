@@ -36,6 +36,7 @@ use num_enum::TryFromPrimitive;
 pub mod buffer;
 pub mod device;
 pub mod filter;
+pub mod semaphore;
 #[allow(non_upper_case_globals, non_camel_case_types, non_snake_case)]
 pub mod sys;
 #[cfg(test)]
@@ -47,6 +48,8 @@ pub use buffer::{Buffer, ExternalMemoryTypeFlags, PendingBufferRead, PendingBuff
 pub use device::Device;
 #[doc(inline)]
 pub use filter::{PendingFilter, RayTracing};
+#[doc(inline)]
+pub use semaphore::{ExternalSemaphoreTypeFlags, Semaphore};
 
 #[repr(i32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]

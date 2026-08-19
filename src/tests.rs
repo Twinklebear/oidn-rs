@@ -37,6 +37,7 @@ fn public_types_remain_send() {
     assert_send::<crate::Device>();
     assert_send::<crate::RayTracing<'static>>();
     assert_send::<Buffer>();
+    assert_send::<crate::Semaphore>();
 }
 
 #[cfg(test)]
@@ -745,4 +746,90 @@ fn devices_by_unknown_uuid_and_luid_report_an_error() {
         .err()
         .expect("an all-zero LUID should not match a physical device");
     assert_ne!(luid_error, Error::None);
+}
+
+#[cfg(test)]
+#[test]
+fn external_semaphore_types_can_be_queried() {
+    use crate::ExternalSemaphoreTypeFlags;
+
+    let device = crate::Device::cpu();
+
+    let flags = device.external_semaphore_types();
+
+    assert_eq!(flags.bits() & !ExternalSemaphoreTypeFlags::all().bits(), 0);
+    assert_device_ok(&device);
+}
+
+#[cfg(test)]
+#[test]
+fn semaphore_signal_and_wait_reject_empty_lists() {
+    let device = crate::Device::cpu();
+
+    let empty = (
+        Error::InvalidArgument,
+        "semaphore list must not be empty".to_string(),
+    );
+
+    assert_eq!(
+        unsafe { device.signal_semaphores_async(&[], None) },
+        Err(empty.clone())
+    );
+    assert_eq!(
+        unsafe { device.wait_semaphores_async(&[], None, None) },
+        Err(empty)
+    );
+
+    assert_device_ok(&device);
+}
+
+#[cfg(all(test, unix))]
+#[test]
+fn invalid_external_semaphore_fd_returns_error() {
+    let device = crate::Device::cpu();
+
+    let result = unsafe {
+        device.create_shared_semaphore_from_fd(crate::ExternalSemaphoreTypeFlags::OPAQUE_FD, -1)
+    };
+
+    assert!(result.is_err());
+    assert_device_ok(&device);
+}
+
+#[cfg(all(test, windows))]
+#[test]
+fn invalid_external_semaphore_win32_handle_returns_error() {
+    let device = crate::Device::cpu();
+
+    let result = unsafe {
+        device.create_shared_semaphore_from_win32_handle(
+            crate::ExternalSemaphoreTypeFlags::OPAQUE_WIN32,
+            std::ptr::null_mut(),
+            None,
+        )
+    };
+
+    assert!(result.is_err());
+    assert_device_ok(&device);
+}
+
+#[cfg(all(test, windows))]
+#[test]
+fn external_semaphore_name_must_be_nul_terminated() {
+    let device = crate::Device::cpu();
+
+    let name: Vec<u16> = "oidn-rs".encode_utf16().collect();
+    let result = unsafe {
+        device.create_shared_semaphore_from_win32_handle(
+            crate::ExternalSemaphoreTypeFlags::OPAQUE_WIN32,
+            std::ptr::null_mut(),
+            Some(&name),
+        )
+    };
+
+    assert_eq!(
+        result.err().map(|(err, _msg)| err),
+        Some(Error::InvalidArgument)
+    );
+    assert_device_ok(&device);
 }
