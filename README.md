@@ -35,7 +35,7 @@ a usable `libclang` installation to be available.
 
 When bumping the Open Image Denoise version, update the crate version,
 `.github/workflows/main.yml`'s `OIDN_VERSION`, and the bundled package
-SHA-256 values in `helpers/shared.rs`. The bundled CI job verifies the host archive
+SHA-256 values in `oidn_hashes`. The bundled CI job verifies the host archive
 against the pinned checksum.
 
 ## Bundled OIDN binaries
@@ -77,16 +77,13 @@ fn main() {
     let mut filter_output = vec![0.0f32; input_img.len()];
 
     let device = oidn::Device::new();
-    oidn::RayTracing::new(&device)
+    oidn::RayTracing::try_new(&device)
+        .expect("Failed to create the filter")
         // Optionally add float3 normal and albedo buffers as well
         .srgb(true)
-        .image_dimensions(input.width() as usize, input.height() as usize);
+        .image_dimensions(input.width() as usize, input.height() as usize)
         .filter(&input_img[..], &mut filter_output[..])
         .expect("Filter config error!");
-
-    if let Err(e) = device.get_error() {
-        println!("Error denoising image: {}", e.1);
-    }
 
     // Save out or display filter_output image
 }
