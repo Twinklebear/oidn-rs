@@ -48,7 +48,7 @@ fn main() {
         panic!("Open Image Denoise failed: {}", error.1);
     }
 
-    for rgb in denoised.chunks_exact(3) {
+    for rgb in denoised.as_chunks::<3>().0 {
         println!("{:.4} {:.4} {:.4}", rgb[0], rgb[1], rgb[2]);
     }
 }

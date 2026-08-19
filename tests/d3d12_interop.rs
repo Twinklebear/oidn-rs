@@ -621,7 +621,7 @@ fn hex(bytes: &[u8; 8]) -> String {
 
 fn unhex(text: &str) -> [u8; 8] {
     let mut bytes = [0u8; 8];
-    for (byte, pair) in bytes.iter_mut().zip(text.as_bytes().chunks_exact(2)) {
+    for (byte, pair) in bytes.iter_mut().zip(text.as_bytes().as_chunks::<2>().0) {
         *byte = u8::from_str_radix(std::str::from_utf8(pair).expect("hex digits"), 16)
             .expect("hex digits");
     }
