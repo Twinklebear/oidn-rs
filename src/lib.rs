@@ -42,7 +42,7 @@ pub mod sys;
 mod tests;
 
 #[doc(inline)]
-pub use buffer::{Buffer, PendingBufferRead, PendingBufferWrite};
+pub use buffer::{Buffer, ExternalMemoryTypeFlags, PendingBufferRead, PendingBufferWrite};
 #[doc(inline)]
 pub use device::Device;
 #[doc(inline)]

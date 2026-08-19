@@ -719,3 +719,30 @@ fn stale_device_errors_do_not_fail_unrelated_calls() {
 
     assert_device_ok(&device);
 }
+
+#[cfg(test)]
+#[test]
+fn external_memory_types_can_be_queried() {
+    use crate::ExternalMemoryTypeFlags;
+
+    let device = crate::Device::cpu();
+
+    let flags = device.external_memory_types();
+
+    assert_eq!(flags.bits() & !ExternalMemoryTypeFlags::all().bits(), 0);
+    assert_device_ok(&device);
+}
+
+#[cfg(test)]
+#[test]
+fn devices_by_unknown_uuid_and_luid_report_an_error() {
+    let (uuid_error, _) = crate::Device::by_uuid(&[0; 16])
+        .err()
+        .expect("an all-zero UUID should not match a physical device");
+    assert_ne!(uuid_error, Error::None);
+
+    let (luid_error, _) = crate::Device::by_luid(&[0; 8])
+        .err()
+        .expect("an all-zero LUID should not match a physical device");
+    assert_ne!(luid_error, Error::None);
+}

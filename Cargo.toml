@@ -33,6 +33,7 @@ default = ["pkg-config"]
 bundled = ["ureq", "sha2", "flate2", "tar", "zip"]
 
 [dependencies]
+bitflags = "2.12"
 num_enum = "0.7.6"
 
 [build-dependencies]

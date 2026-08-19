@@ -59,6 +59,59 @@ impl Device {
         Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_METAL)
     }
 
+    /// Creates a device on the physical device with the given UUID, as
+    /// reported by e.g. `VkPhysicalDeviceIDProperties::deviceUUID`.
+    ///
+    /// Sharing memory or semaphores with a graphics API requires the Open
+    /// Image Denoise device to run on the same physical device as that API.
+    /// Not every physical device supports every identifier, and drivers may
+    /// even report inconsistent ones, so check more than one property where
+    /// possible.
+    pub fn by_uuid(uuid: &[u8; 16]) -> Result<Self, (Error, String)> {
+        Self::commit_new_handle(
+            unsafe { oidnNewDeviceByUUID(uuid.as_ptr().cast()) },
+            "oidnNewDeviceByUUID",
+        )
+    }
+
+    /// Creates a device on the physical device with the given LUID, as
+    /// reported by e.g. `DXGI_ADAPTER_DESC::AdapterLuid` or
+    /// `VkPhysicalDeviceIDProperties::deviceLUID`.
+    ///
+    /// See [`Device::by_uuid`] for the caveats that apply to selecting a
+    /// physical device this way.
+    pub fn by_luid(luid: &[u8; 8]) -> Result<Self, (Error, String)> {
+        Self::commit_new_handle(
+            unsafe { oidnNewDeviceByLUID(luid.as_ptr().cast()) },
+            "oidnNewDeviceByLUID",
+        )
+    }
+
+    fn commit_new_handle(handle: OIDNDevice, call: &str) -> Result<Self, (Error, String)> {
+        if handle.is_null() {
+            // Errors that are not associated with a device, which includes a
+            // device failing to be constructed, are reported on the null
+            // device.
+            return Err(match Self::error_from_raw_device(ptr::null_mut()) {
+                Err(err) => err,
+                Ok(()) => (
+                    Error::Unknown,
+                    format!("{call} returned null without setting an error"),
+                ),
+            });
+        }
+
+        unsafe {
+            oidnCommitDevice(handle);
+        }
+
+        // Dropping the device on the error path releases the handle.
+        let device = Self(handle, Arc::new(0));
+        device.get_error()?;
+
+        Ok(device)
+    }
+
     /// # Safety
     /// Raw device must not be invalid (e.g. destroyed, null, etc.)
     /// Raw device must be committed using [oidnCommitDevice].
