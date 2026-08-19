@@ -3,9 +3,9 @@ use std::mem;
 
 fn buffer_or_skip(device: &crate::Device, contents: &[f32]) -> Option<Buffer> {
     match device.create_buffer(contents) {
-        Some(buffer) => Some(buffer),
+        Ok(buffer) => Some(buffer),
         // resources failing to be created is not the fault of this library
-        None => {
+        Err(_) => {
             eprintln!("Test skipped due to buffer creation failing");
             None
         }
@@ -14,9 +14,9 @@ fn buffer_or_skip(device: &crate::Device, contents: &[f32]) -> Option<Buffer> {
 
 fn storage_buffer_or_skip(device: &crate::Device, len: usize, storage: Storage) -> Option<Buffer> {
     match device.create_buffer_with_storage(len, storage) {
-        Some(buffer) => Some(buffer),
+        Ok(buffer) => Some(buffer),
         // resources failing to be created is not the fault of this library
-        None => {
+        Err(_) => {
             eprintln!("Test skipped due to buffer creation failing");
             None
         }
@@ -47,7 +47,7 @@ fn buffer_read_write() {
         return;
     };
     buffer.write(&[1.0]).unwrap();
-    assert_eq!(buffer.read(), vec![1.0]);
+    assert_eq!(buffer.read().unwrap(), vec![1.0]);
     let mut slice = vec![0.0];
     buffer.read_to_slice(&mut slice).unwrap();
     assert_eq!(slice, vec![1.0]);
@@ -61,10 +61,10 @@ fn buffer_size_mismatch_paths_return_none() {
     let Some(buffer) = buffer_or_skip(&device, &[0.0]) else {
         return;
     };
-    assert_eq!(buffer.write(&[1.0, 2.0]), None);
+    assert!(buffer.write(&[1.0, 2.0]).is_err());
 
     let mut slice = vec![0.0, 0.0];
-    assert_eq!(buffer.read_to_slice(&mut slice), None);
+    assert!(buffer.read_to_slice(&mut slice).is_err());
     assert_device_ok(&device);
 }
 
@@ -79,7 +79,7 @@ fn buffer_import_read_write() {
     }
     let buffer = unsafe { device.create_buffer_from_raw(raw_buffer) };
     buffer.write(&[1.0]).unwrap();
-    assert_eq!(buffer.read(), vec![1.0]);
+    assert_eq!(buffer.read().unwrap(), vec![1.0]);
     let mut slice = vec![0.0];
     buffer.read_to_slice(&mut slice).unwrap();
     assert_eq!(slice, vec![1.0]);
@@ -99,12 +99,12 @@ fn buffer_clone_and_from_keep_raw_buffer_alive() {
     let clone = buffer.clone();
     drop(buffer);
     clone.write(&[2.0]).unwrap();
-    assert_eq!(clone.read(), vec![2.0]);
+    assert_eq!(clone.read().unwrap(), vec![2.0]);
 
     let converted = Buffer::from(&clone);
     drop(clone);
     converted.write(&[3.0]).unwrap();
-    assert_eq!(converted.read(), vec![3.0]);
+    assert_eq!(converted.read().unwrap(), vec![3.0]);
     assert_device_ok(&device);
 }
 
@@ -137,7 +137,7 @@ fn create_buffer_with_storage_tracks_host_metadata() {
     assert!(!buffer.data_ptr().is_null());
 
     buffer.write(&[2.0, 3.0]).unwrap();
-    assert_eq!(buffer.read(), vec![2.0, 3.0]);
+    assert_eq!(buffer.read().unwrap(), vec![2.0, 3.0]);
     assert_device_ok(&device);
 }
 
@@ -149,7 +149,7 @@ fn create_buffer_with_storage_rejects_len_overflow() {
     assert!(
         device
             .create_buffer_with_storage(overflowing_len, Storage::Host)
-            .is_none()
+            .is_err()
     );
     assert_device_ok(&device);
 }
@@ -169,7 +169,7 @@ fn buffer_async_read_write_waits_for_completion() {
             .expect("matching async write should start")
             .wait();
     }
-    assert_eq!(buffer.read(), source);
+    assert_eq!(buffer.read().unwrap(), source);
 
     let mut output = [0.0, 0.0];
     unsafe {
@@ -191,15 +191,15 @@ fn buffer_async_rejects_mismatched_lengths_and_devices() {
         return;
     };
 
-    assert!(unsafe { device.write_buffer_async(&mut buffer, &[1.0, 2.0]) }.is_none());
+    assert!(unsafe { device.write_buffer_async(&mut buffer, &[1.0, 2.0]) }.is_err());
 
     let mut output = [0.0, 0.0];
-    assert!(unsafe { device.read_buffer_async(&mut buffer, &mut output) }.is_none());
+    assert!(unsafe { device.read_buffer_async(&mut buffer, &mut output) }.is_err());
 
-    assert!(unsafe { foreign_device.write_buffer_async(&mut buffer, &[1.0]) }.is_none());
+    assert!(unsafe { foreign_device.write_buffer_async(&mut buffer, &[1.0]) }.is_err());
 
     let mut read_target = [0.0];
-    assert!(unsafe { foreign_device.read_buffer_async(&mut buffer, &mut read_target) }.is_none());
+    assert!(unsafe { foreign_device.read_buffer_async(&mut buffer, &mut read_target) }.is_err());
     assert_device_ok(&device);
     assert_device_ok(&foreign_device);
 }
@@ -218,7 +218,7 @@ fn buffer_async_guards_sync_on_drop() {
             .write_buffer_async(&mut buffer, &source)
             .expect("matching async write should start");
     }
-    assert_eq!(buffer.read(), source);
+    assert_eq!(buffer.read().unwrap(), source);
 
     let mut output = [0.0, 0.0];
     unsafe {
@@ -251,7 +251,7 @@ fn filter_buffer_paths_execute_and_wait_for_async_guards() {
         return;
     };
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter
         .hdr(false)
         .srgb(true)
@@ -289,7 +289,7 @@ fn filter_async_guard_syncs_on_drop() {
         return;
     };
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
 
     unsafe {
@@ -313,7 +313,7 @@ fn slice_filter_paths_execute_and_validate_dimensions() {
     let mut output = [0.0, 0.0, 0.0];
     let mut in_place = color;
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter
         .filter_quality(Quality::Default)
         .hdr(false)
@@ -345,7 +345,7 @@ fn slice_auxiliary_images_are_reused_and_resized() {
     let larger_color = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
     let mut larger_output = [0.0; 6];
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter
         .image_dimensions(1, 1)
         .albedo(&[0.5, 0.5, 0.5])
@@ -365,7 +365,7 @@ fn slice_auxiliary_setters_cover_initial_reuse_and_resize_paths() {
     let color = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
     let mut output = [0.0; 6];
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter
         .albedo(&[0.5, 0.5, 0.5])
         .albedo(&[0.6, 0.6, 0.6])
@@ -393,7 +393,7 @@ fn albedo_only_filter_executes_without_normal() {
     let color = [0.2, 0.3, 0.4];
     let mut output = [0.0, 0.0, 0.0];
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1).albedo(&[0.5, 0.5, 0.5]);
     filter.filter(&color, &mut output).unwrap();
     assert_device_ok(&device);
@@ -417,7 +417,7 @@ fn filter_buffer_rejects_invalid_dimensions_and_foreign_buffers() {
         return;
     };
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(2, 1);
     assert_eq!(
         filter.filter_buffer(&color, &output),
@@ -461,7 +461,7 @@ fn filter_rejects_auxiliary_buffers_with_invalid_dimensions() {
         return;
     };
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
     assert!(filter.albedo_buffer(&wide_albedo).is_some());
     assert_eq!(
@@ -469,7 +469,7 @@ fn filter_rejects_auxiliary_buffers_with_invalid_dimensions() {
         Err(Error::InvalidImageDimensions)
     );
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
     assert!(filter.albedo_normal_buffer(&albedo, &wide_normal).is_some());
     assert_eq!(
@@ -504,7 +504,7 @@ fn filter_async_rejects_invalid_dimensions_and_foreign_buffers() {
         return;
     };
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
 
     assert!(matches!(
@@ -549,7 +549,7 @@ fn image_dimensions_drops_stale_aux_buffers() {
         return;
     };
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     assert!(
         filter
             .image_dimensions(1, 1)
@@ -580,7 +580,7 @@ fn auxiliary_buffer_setters_reject_foreign_devices() {
         return;
     };
 
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     assert!(filter.albedo_buffer(&albedo).is_some());
     assert!(filter.albedo_normal_buffer(&albedo, &normal).is_some());
     assert!(filter.albedo_buffer(&foreign_albedo).is_none());
@@ -602,7 +602,7 @@ fn auxiliary_buffer_setters_reject_foreign_devices() {
 #[test]
 fn weights_and_new_enum_variants_are_exposed() {
     let device = crate::Device::cpu();
-    let mut filter = crate::RayTracing::new(&device);
+    let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.weights(&[1, 2, 3, 4]).clear_weights();
 
     assert_eq!(
@@ -695,6 +695,27 @@ fn default_new_and_from_raw_devices_are_usable() {
     let Some(buffer) = buffer_or_skip(&device, &[1.0]) else {
         return;
     };
-    assert_eq!(buffer.read(), vec![1.0]);
+    assert_eq!(buffer.read().unwrap(), vec![1.0]);
+    assert_device_ok(&device);
+}
+
+#[cfg(test)]
+#[test]
+fn stale_device_errors_do_not_fail_unrelated_calls() {
+    let device = crate::Device::cpu();
+
+    // Leave an error pending on the device, as a raw `sys` call would. OIDN
+    // only records an error when none is stored, so a stale error would both
+    // mask real failures and be reported as the failure of the next call.
+    unsafe {
+        crate::sys::oidnGetDeviceInt(device.raw(), b"nonexistentParameter\0" as *const _ as _);
+    }
+
+    let buffer = device
+        .create_buffer(&[1.0])
+        .expect("a stale device error must not be reported as a buffer failure");
+    buffer.write(&[2.0]).unwrap();
+    assert_eq!(buffer.read().unwrap(), vec![2.0]);
+
     assert_device_ok(&device);
 }

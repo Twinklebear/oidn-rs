@@ -1,5 +1,5 @@
 use crate::{Error, Quality, buffer::Buffer, device::Device, sys::*};
-use std::{cell::Cell, mem};
+use std::cell::Cell;
 
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
@@ -21,12 +21,30 @@ pub struct RayTracing<'a> {
 }
 
 impl<'a> RayTracing<'a> {
+    #[deprecated(since = "2.5.0", note = "use RayTracing::try_new instead")]
     pub fn new(device: &'a Device) -> RayTracing<'a> {
+        Self::try_new(device).expect("failed to create OIDN RT filter")
+    }
+
+    /// Creates an `RT` filter on `device`.
+    pub fn try_new(device: &'a Device) -> Result<RayTracing<'a>, (Error, String)> {
         unsafe {
             oidnRetainDevice(device.0);
         }
+
+        device.clear_error();
+
         let filter = unsafe { oidnNewFilter(device.0, b"RT\0" as *const _ as _) };
-        RayTracing {
+
+        if filter.is_null() {
+            unsafe {
+                oidnReleaseDevice(device.0);
+            }
+
+            return Err(device.take_error(Error::Unknown, "oidnNewFilter"));
+        }
+
+        Ok(RayTracing {
             handle: filter,
             device,
             albedo: None,
@@ -39,7 +57,7 @@ impl<'a> RayTracing<'a> {
             weights_set: Cell::new(false),
             img_dims: (0, 0, 0),
             filter_quality: 0,
-        }
+        })
     }
 
     /// Sets the quality of the output, the default is high.
@@ -304,21 +322,18 @@ impl<'a> RayTracing<'a> {
     fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), Error> {
         let color = match color {
             None => None,
-            Some(color) => Some(self.device.create_buffer(color).ok_or(Error::OutOfMemory)?),
+            Some(color) => Some(
+                self.device
+                    .create_buffer(color)
+                    .map_err(|(err, _msg)| err)?,
+            ),
         };
         let out = self
             .device
             .create_buffer(output)
-            .ok_or(Error::OutOfMemory)?;
+            .map_err(|(err, _msg)| err)?;
         self.execute_filter_buffer(color.as_ref(), &out)?;
-        unsafe {
-            oidnReadBuffer(
-                out.buf,
-                0,
-                out.size * mem::size_of::<f32>(),
-                output.as_mut_ptr() as *mut _,
-            )
-        };
+        out.read_to_slice(output).map_err(|(err, _msg)| err)?;
         Ok(())
     }
 
@@ -327,6 +342,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnExecuteFilter(self.handle);
         }
+        self.device.get_error().map_err(|(err, _msg)| err)?;
         Ok(())
     }
 
@@ -339,6 +355,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnExecuteFilterAsync(self.handle);
         }
+        self.device.get_error().map_err(|(err, _msg)| err)?;
         Ok(PendingFilter {
             filter: self,
             _color: color,
@@ -352,6 +369,8 @@ impl<'a> RayTracing<'a> {
         color: Option<&Buffer>,
         output: &Buffer,
     ) -> Result<(), Error> {
+        self.device.clear_error();
+
         if let Some(alb) = &self.albedo {
             if alb.size != self.img_dims.2 {
                 return Err(Error::InvalidImageDimensions);
@@ -470,6 +489,9 @@ impl<'a> RayTracing<'a> {
 
             oidnCommitFilter(self.handle);
         }
+
+        self.device.get_error().map_err(|(err, _msg)| err)?;
+
         Ok(())
     }
 }
@@ -514,5 +536,33 @@ impl PendingFilter<'_, '_> {
 impl Drop for PendingFilter<'_, '_> {
     fn drop(&mut self) {
         self.finish();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn weights_replaces_and_clears_existing_shared_weights() {
+        let device = Device::cpu();
+        let mut filter = RayTracing::try_new(&device).unwrap();
+
+        // Simulate the state after configure_filter_buffer has installed
+        // weights, so the `weights_set == true` branches are covered without
+        // needing valid OIDN model weights or a denoise operation.
+        filter.weights_set.set(true);
+
+        filter.weights(&[1, 2, 3, 4]);
+        assert_eq!(filter.weights.as_deref(), Some(&[1, 2, 3, 4][..]));
+        assert!(filter.weights_set.get());
+
+        filter.clear_weights();
+        assert!(filter.weights.is_none());
+        assert!(!filter.weights_set.get());
+
+        if let Err((err, msg)) = device.get_error() {
+            panic!("OIDN device error after weights test: {err:?}: {msg}");
+        }
     }
 }

@@ -110,7 +110,7 @@ fn main() {
     let albedo: EXRData;
     let normal: EXRData;
 
-    let mut denoiser = oidn::RayTracing::new(&device);
+    let mut denoiser = oidn::RayTracing::try_new(&device).unwrap();
     denoiser
         .srgb(false)
         .hdr(true)
@@ -130,10 +130,6 @@ fn main() {
     denoiser
         .filter_in_place(&mut color.img[..])
         .expect("Invalid input image dimensions?");
-
-    if let Err(e) = device.get_error() {
-        println!("Error denosing image: {}", e.1);
-    }
 
     let exposure = 2.0_f32.powf(args.flag_e);
     let output_img = (0..color.img.len())

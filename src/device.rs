@@ -72,15 +72,56 @@ impl Device {
         self.0
     }
 
+    /// Returns and clears the error state of this device for the calling
+    /// thread.
+    ///
+    /// Open Image Denoise stores one error code per thread per device, and
+    /// only records an error if no previous error is stored. A stale error
+    /// therefore masks later failures as well as being reported as the failure
+    /// of an unrelated call, so the checked wrappers in this crate clear the
+    /// error state before any operation whose only failure signal is that
+    /// state. If you call into [`sys`](crate::sys) directly, query the error
+    /// before handing the device back to the safe API.
     pub fn get_error(&self) -> Result<(), (Error, String)> {
-        let mut err_msg = ptr::null();
-        let err = unsafe { oidnGetDeviceError(self.0, &mut err_msg as *mut *const c_char) };
+        Self::error_from_raw_device(self.0)
+    }
+
+    pub(crate) fn error_from_raw_device(device: OIDNDevice) -> Result<(), (Error, String)> {
+        let mut err_msg: *const c_char = ptr::null();
+        let err = unsafe { oidnGetDeviceError(device, &mut err_msg as *mut *const c_char) };
+
         if OIDNError_OIDN_ERROR_NONE == err {
             Ok(())
         } else {
-            let msg = unsafe { CStr::from_ptr(err_msg).to_string_lossy().to_string() };
-            Err((err.try_into().unwrap(), msg))
+            let msg = if err_msg.is_null() {
+                String::new()
+            } else {
+                unsafe { CStr::from_ptr(err_msg).to_string_lossy().to_string() }
+            };
+
+            Err((err.try_into().unwrap_or(Error::Unknown), msg))
         }
+    }
+
+    /// Returns the pending device error, falling back to `fallback` when a C
+    /// call reported failure by returning null without recording one.
+    pub(crate) fn take_error(&self, fallback: Error, call: &str) -> (Error, String) {
+        match self.get_error() {
+            Err(err) => err,
+            Ok(()) => (
+                fallback,
+                format!("{call} returned null without setting a device error"),
+            ),
+        }
+    }
+
+    /// Discards any error stored for the calling thread on this device.
+    pub(crate) fn clear_error(&self) {
+        Self::clear_error_on_raw_device(self.0);
+    }
+
+    pub(crate) fn clear_error_on_raw_device(device: OIDNDevice) {
+        unsafe { oidnGetDeviceError(device, ptr::null_mut()) };
     }
 
     /// Waits until all asynchronous operations on the device have completed.

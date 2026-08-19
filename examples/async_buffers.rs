@@ -24,7 +24,7 @@ fn main() {
         .create_buffer_with_storage(PIXELS, Storage::Host)
         .expect("failed to allocate output buffer");
 
-    let mut filter = RayTracing::new(&device);
+    let mut filter = RayTracing::try_new(&device).unwrap();
     filter
         .filter_quality(Quality::Balanced)
         .srgb(true)
