@@ -25,7 +25,7 @@ use windows::Win32::Graphics::Direct3D::D3D_FEATURE_LEVEL_11_0;
 use windows::Win32::Graphics::Direct3D12::*;
 use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC};
 use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
-use windows::core::Interface;
+use windows::core::{Interface, PCWSTR};
 
 const WIDTH: usize = 64;
 const HEIGHT: usize = 64;
@@ -292,12 +292,23 @@ impl D3d12 {
     }
 
     fn shared_handle<I: Interface>(&self, object: &I) -> HANDLE {
+        self.named_shared_handle(object, PCWSTR::null())
+    }
+
+    /// Publishes an object under `name`, returning the handle that keeps the
+    /// name registered. Another process can then open the same object by name.
+    fn publish<I: Interface>(&self, object: &I, name: &str) -> HANDLE {
+        let name = wide(name);
+        self.named_shared_handle(object, PCWSTR(name.as_ptr()))
+    }
+
+    fn named_shared_handle<I: Interface>(&self, object: &I, name: PCWSTR) -> HANDLE {
         unsafe {
             self.device.CreateSharedHandle(
                 &object.cast::<ID3D12DeviceChild>().unwrap(),
                 None,
                 GENERIC_ALL,
-                None,
+                name,
             )
         }
         .expect("creating a shared handle should succeed")
@@ -401,4 +412,218 @@ impl D3d12 {
             );
         }
     }
+}
+
+// --- Cross-process interop -------------------------------------------------
+
+/// Marks the child process, and carries the object names and adapter it should
+/// use.
+const CHILD_ENV: &str = "OIDN_RS_D3D12_CHILD";
+const LUID_ENV: &str = "OIDN_RS_D3D12_LUID";
+const FENCE_ENV: &str = "OIDN_RS_D3D12_FENCE";
+const INPUT_ENV: &str = "OIDN_RS_D3D12_INPUT";
+const OUTPUT_ENV: &str = "OIDN_RS_D3D12_OUTPUT";
+
+/// The same round trip across two processes: the one holding the Direct3D 12
+/// objects never touches Open Image Denoise, and the one that denoises never
+/// touches Direct3D 12. The fence and buffers are published under Win32 object
+/// names and opened by name in the child, which is how an importing process
+/// reaches objects whose handles it was never given.
+///
+/// The child has to outlive the parent's readback. Tearing down the importing
+/// process while the exporting device is still using the shared resources
+/// removes that device, so the child waits to be told to exit.
+#[test]
+fn d3d12_named_handles_cross_process_round_trip() {
+    if std::env::var_os(CHILD_ENV).is_some() {
+        // This process is the child; it runs child_denoises_named_handles.
+        return;
+    }
+
+    let Some(d3d12) = D3d12::new() else {
+        eprintln!("skipped: no Direct3D 12 device");
+        return;
+    };
+
+    let luid = d3d12.adapter_luid();
+    match oidn::Device::by_luid(&luid) {
+        Ok(device)
+            if device
+                .external_semaphore_types()
+                .contains(ExternalSemaphoreTypeFlags::D3D12_FENCE) => {}
+        Ok(_) => {
+            eprintln!("skipped: device cannot import Direct3D 12 fences");
+            return;
+        }
+        Err((err, msg)) => {
+            eprintln!("skipped: no OIDN device on the Direct3D 12 adapter: {err:?}: {msg}");
+            return;
+        }
+    }
+
+    // Object names must be unique, and are only reachable while the handles
+    // that registered them are open.
+    let prefix = format!(r"Local\oidn-rs-{}", std::process::id());
+    let (fence_name, input_name, output_name) = (
+        format!("{prefix}-fence"),
+        format!("{prefix}-input"),
+        format!("{prefix}-output"),
+    );
+
+    let (noisy, clean) = test_image();
+
+    let input = d3d12.shared_buffer(D3D12_HEAP_TYPE_DEFAULT, BYTE_SIZE);
+    let output = d3d12.shared_buffer(D3D12_HEAP_TYPE_DEFAULT, BYTE_SIZE);
+    let fence = d3d12.shared_fence();
+
+    let published = [
+        d3d12.publish(&input, &input_name),
+        d3d12.publish(&output, &output_name),
+        d3d12.publish(&fence, &fence_name),
+    ];
+
+    d3d12.upload(&input, &noisy);
+    unsafe { d3d12.queue.Signal(&fence, 1) }.expect("signalling the upload should succeed");
+
+    let mut child = std::process::Command::new(
+        std::env::current_exe().expect("the test binary should have a path"),
+    )
+    .args(["--exact", "--nocapture", "child_denoises_named_handles"])
+    .env(CHILD_ENV, "1")
+    .env(LUID_ENV, hex(&luid))
+    .env(FENCE_ENV, &fence_name)
+    .env(INPUT_ENV, &input_name)
+    .env(OUTPUT_ENV, &output_name)
+    .stdin(std::process::Stdio::piped())
+    .spawn()
+    .expect("the denoising child process should start");
+
+    wait_for_child_to_denoise(&fence, &mut child);
+
+    unsafe { d3d12.queue.Wait(&fence, 2) }.expect("waiting on the denoised fence value");
+    let denoised = d3d12.download(&output, &fence, 3);
+
+    // Only now may the child let go of the shared resources.
+    drop(child.stdin.take());
+    let status = child.wait().expect("waiting for the child process");
+    assert!(status.success(), "the denoising child process failed");
+
+    for handle in published {
+        unsafe { CloseHandle(handle) }.expect("closing a published handle");
+    }
+
+    let before = mean_squared_error(&noisy, &clean);
+    let after = mean_squared_error(&denoised, &clean);
+    println!("mean squared error: {before:.6} before, {after:.6} after");
+    assert!(
+        after < before,
+        "the child process should have denoised into the shared buffer"
+    );
+}
+
+/// Blocks until the child signals the fence, failing if it exits first or takes
+/// too long.
+fn wait_for_child_to_denoise(fence: &ID3D12Fence, child: &mut std::process::Child) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(TIMEOUT_MS as u64);
+
+    while std::time::Instant::now() < deadline {
+        // A removed device reports u64::MAX, which would otherwise look like
+        // the child having signalled.
+        let value = unsafe { fence.GetCompletedValue() };
+        assert_ne!(
+            value,
+            u64::MAX,
+            "the Direct3D 12 device was removed while the child was running"
+        );
+        if value >= 2 {
+            return;
+        }
+
+        if let Some(status) = child.try_wait().expect("polling the child process") {
+            panic!("the child process exited before denoising: {status}");
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    panic!("timed out waiting for the child process to denoise");
+}
+
+/// The denoising half of [`d3d12_named_handles_cross_process_round_trip`]. It
+/// runs in a child process, never creates a Direct3D 12 device, and is a no-op
+/// unless that test started it.
+#[test]
+fn child_denoises_named_handles() {
+    if std::env::var_os(CHILD_ENV).is_none() {
+        return;
+    }
+
+    let device = oidn::Device::by_luid(&unhex(&var(LUID_ENV)))
+        .expect("an OIDN device on the parent's adapter");
+
+    let input = import_named_buffer(&device, &var(INPUT_ENV));
+    let output = import_named_buffer(&device, &var(OUTPUT_ENV));
+
+    let semaphore = unsafe {
+        device.create_shared_semaphore_from_win32_handle(
+            ExternalSemaphoreTypeFlags::D3D12_FENCE,
+            std::ptr::null_mut(),
+            Some(&wide(&var(FENCE_ENV))),
+        )
+    }
+    .expect("importing the fence the parent published by name");
+
+    unsafe { device.wait_semaphores_async(&[&semaphore], Some(&[1]), None) }
+        .expect("waiting for the parent's upload");
+
+    let mut filter = oidn::RayTracing::try_new(&device).expect("the RT filter should be created");
+    filter.srgb(false).image_dimensions(WIDTH, HEIGHT);
+    filter
+        .filter_buffer(&input, &output)
+        .expect("denoising the shared buffers should succeed");
+
+    unsafe { device.signal_semaphores_async(&[&semaphore], Some(&[2])) }
+        .expect("signalling the parent that the output is ready");
+    device.sync();
+
+    // Hold the imports open until the parent closes our stdin, so that the
+    // shared resources outlive its readback.
+    let mut ignored = String::new();
+    std::io::stdin()
+        .read_line(&mut ignored)
+        .expect("waiting for the parent to finish");
+}
+
+fn import_named_buffer(device: &oidn::Device, name: &str) -> oidn::Buffer {
+    unsafe {
+        device.create_shared_buffer_from_win32_handle(
+            ExternalMemoryTypeFlags::D3D12_RESOURCE | ExternalMemoryTypeFlags::DEDICATED,
+            std::ptr::null_mut(),
+            Some(&wide(name)),
+            BYTE_SIZE,
+        )
+    }
+    .unwrap_or_else(|(err, msg)| panic!("importing `{name}` by name failed: {err:?}: {msg}"))
+}
+
+fn var(name: &str) -> String {
+    std::env::var(name).unwrap_or_else(|_| panic!("{name} should be set by the parent process"))
+}
+
+/// Win32 object names are NUL-terminated UTF-16.
+fn wide(name: &str) -> Vec<u16> {
+    name.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+fn hex(bytes: &[u8; 8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn unhex(text: &str) -> [u8; 8] {
+    let mut bytes = [0u8; 8];
+    for (byte, pair) in bytes.iter_mut().zip(text.as_bytes().chunks_exact(2)) {
+        *byte = u8::from_str_radix(std::str::from_utf8(pair).expect("hex digits"), 16)
+            .expect("hex digits");
+    }
+    bytes
 }
