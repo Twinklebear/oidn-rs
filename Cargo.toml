@@ -2,7 +2,7 @@
 name = "oidn"
 version = "2.5.0"
 edition = "2024"
-authors = ["Will Usher <will@willusher.io>"]
+authors = ["Will Usher <will@willusher.io>", "hill <hill@hilll.dev>"]
 build = "build.rs"
 homepage = "https://github.com/Twinklebear/oidn-rs"
 documentation = "https://docs.rs/oidn"
