@@ -139,7 +139,12 @@ jobs:
               env:
                   OIDN_DIR: ""
             - name: Test bundled feature (Windows)
-              run: cargo test -p oidn --all-targets --features bundled
+              # Windows has no rpath, and newer cargo versions build test
+              # binaries into a directory of their own, away from the runtime
+              # libraries the build script copies out.
+              run: |
+                $env:PATH="${env:GITHUB_WORKSPACE}/oidn-${env:OIDN_VERSION}.x64.windows/bin;${env:PATH}"
+                cargo test -p oidn --all-targets --features bundled
               env:
                   OIDN_DIR: ""
 

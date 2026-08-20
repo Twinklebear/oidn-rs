@@ -91,11 +91,23 @@ fn configure_bundled() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rustc-link-arg=-Wl,-rpath,@loader_path");
     }
 
+    // Test binaries are never uplifted next to the copied libraries, and newer
+    // cargo versions put them in a per-target directory of their own, so point
+    // them at the bundled libraries directly. Only tests get this absolute
+    // path; binaries and examples stay relocatable.
+    if env::consts::OS == "linux" || env::consts::OS == "macos" {
+        println!(
+            "cargo:rustc-link-arg-tests=-Wl,-rpath,{}",
+            lib_path.display()
+        );
+    }
+
     Ok(())
 }
 
 #[cfg(feature = "bundled")]
 fn copy_runtime_libraries(oidn_dir: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    use std::ffi::OsStr;
     use std::fs;
     use std::path::Path;
 
@@ -103,7 +115,16 @@ fn copy_runtime_libraries(oidn_dir: &std::path::Path) -> Result<(), Box<dyn std:
         return Ok(());
     };
 
-    let Some(profile_dir) = out_dir.ancestors().nth(3).map(Path::to_path_buf) else {
+    // OUT_DIR sits under `<profile>/build/`, but how deeply depends on the
+    // cargo version: `<profile>/build/<pkg>-<hash>/out` before the build
+    // directory was reorganized, `<profile>/build/<pkg>/<hash>/out` after.
+    // Anchoring on the `build` directory itself works for both.
+    let Some(profile_dir) = out_dir
+        .ancestors()
+        .find(|ancestor| ancestor.file_name() == Some(OsStr::new("build")))
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+    else {
         return Ok(());
     };
 
