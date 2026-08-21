@@ -2,9 +2,8 @@ use crate::sys::{
     OIDNExternalSemaphoreTypeFlags, OIDNSemaphore, oidnGetDeviceInt, oidnReleaseSemaphore,
     oidnRetainSemaphore, oidnSignalSemaphoresAsync, oidnWaitSemaphoresAsync,
 };
-use crate::{Device, Error};
+use crate::{Device, Error, ErrorKind};
 use std::ptr;
-use std::sync::Arc;
 
 #[cfg(unix)]
 use std::os::fd::RawFd;
@@ -61,13 +60,15 @@ bitflags::bitflags! {
 /// An external semaphore imported from a graphics API.
 ///
 /// Semaphores synchronize access to memory shared with another API, imported
-/// with `Device::create_shared_buffer_from_fd` or
-/// `Device::create_shared_buffer_from_win32_handle`. Importing them is
+/// with `Device::create_shared_buffer_from_raw_fd` or
+/// `Device::create_shared_buffer_from_raw_handle`. Importing them is
 /// supported only by CUDA and HIP devices, and only for the handle types
 /// reported by [`Device::external_semaphore_types`].
 pub struct Semaphore {
     pub(crate) semaphore: OIDNSemaphore,
-    pub(crate) device_arc: Arc<u8>,
+    /// The device the semaphore was imported by, kept alive for as long as the
+    /// semaphore is.
+    pub(crate) device: Device,
     pub(crate) semaphore_type: ExternalSemaphoreTypeFlags,
 }
 
@@ -94,11 +95,11 @@ impl Device {
     /// `semaphore_type`, exported by an API running on the same physical
     /// device as this one.
     #[cfg(unix)]
-    pub unsafe fn create_shared_semaphore_from_fd(
+    pub unsafe fn create_shared_semaphore_from_raw_fd(
         &self,
         semaphore_type: ExternalSemaphoreTypeFlags,
         fd: RawFd,
-    ) -> Result<Semaphore, (Error, String)> {
+    ) -> Result<Semaphore, Error> {
         use crate::sys::oidnNewSharedSemaphoreFromFD;
 
         self.clear_error();
@@ -112,12 +113,12 @@ impl Device {
         };
 
         if semaphore.is_null() {
-            return Err(self.take_error(Error::Unknown, "oidnNewSharedSemaphoreFromFD"));
+            return Err(self.take_error(ErrorKind::Unknown, "oidnNewSharedSemaphoreFromFD"));
         }
 
         Ok(Semaphore {
             semaphore,
-            device_arc: self.1.clone(),
+            device: self.retained(),
             semaphore_type,
         })
     }
@@ -136,20 +137,20 @@ impl Device {
     /// `semaphore_type`, exported by an API running on the same physical
     /// device as this one.
     #[cfg(windows)]
-    pub unsafe fn create_shared_semaphore_from_win32_handle(
+    pub unsafe fn create_shared_semaphore_from_raw_handle(
         &self,
         semaphore_type: ExternalSemaphoreTypeFlags,
         handle: RawHandle,
         name: Option<&[u16]>,
-    ) -> Result<Semaphore, (Error, String)> {
+    ) -> Result<Semaphore, Error> {
         use crate::sys::oidnNewSharedSemaphoreFromWin32Handle;
 
         if let Some(name) = name
             && name.last() != Some(&0)
         {
-            return Err((
-                Error::InvalidArgument,
-                "semaphore name must be NUL-terminated UTF-16".to_string(),
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "semaphore name must be NUL-terminated UTF-16",
             ));
         }
 
@@ -165,12 +166,14 @@ impl Device {
         };
 
         if semaphore.is_null() {
-            return Err(self.take_error(Error::Unknown, "oidnNewSharedSemaphoreFromWin32Handle"));
+            return Err(
+                self.take_error(ErrorKind::Unknown, "oidnNewSharedSemaphoreFromWin32Handle")
+            );
         }
 
         Ok(Semaphore {
             semaphore,
-            device_arc: self.1.clone(),
+            device: self.retained(),
             semaphore_type,
         })
     }
@@ -190,7 +193,7 @@ impl Device {
         &self,
         semaphores: &[&Semaphore],
         values: Option<&[u64]>,
-    ) -> Result<(), (Error, String)> {
+    ) -> Result<(), Error> {
         let raw_semaphores = self.raw_semaphores(semaphores, values, None)?;
 
         self.clear_error();
@@ -222,7 +225,7 @@ impl Device {
         semaphores: &[&Semaphore],
         values: Option<&[u64]>,
         timeouts_ms: Option<&[u32]>,
-    ) -> Result<(), (Error, String)> {
+    ) -> Result<(), Error> {
         let raw_semaphores = self.raw_semaphores(semaphores, values, timeouts_ms)?;
 
         self.clear_error();
@@ -245,7 +248,7 @@ impl Device {
         semaphores: &[&Semaphore],
         values: Option<&[u64]>,
         timeouts_ms: Option<&[u32]>,
-    ) -> Result<Vec<OIDNSemaphore>, (Error, String)> {
+    ) -> Result<Vec<OIDNSemaphore>, Error> {
         validate_semaphore_counts(
             semaphores.len(),
             values.map(<[u64]>::len),
@@ -253,10 +256,10 @@ impl Device {
         )?;
 
         for semaphore in semaphores {
-            if !Arc::ptr_eq(&self.1, &semaphore.device_arc) {
-                return Err((
-                    Error::InvalidArgument,
-                    "semaphore was not created by this device".to_string(),
+            if !self.is_same_device(&semaphore.device) {
+                return Err(Error::new(
+                    ErrorKind::InvalidArgument,
+                    "semaphore was not created by this device",
                 ));
             }
         }
@@ -275,25 +278,25 @@ fn validate_semaphore_counts(
     semaphores: usize,
     values: Option<usize>,
     timeouts_ms: Option<usize>,
-) -> Result<(), (Error, String)> {
+) -> Result<(), Error> {
     if semaphores == 0 {
-        return Err((
-            Error::InvalidArgument,
-            "semaphore list must not be empty".to_string(),
+        return Err(Error::new(
+            ErrorKind::InvalidArgument,
+            "semaphore list must not be empty",
         ));
     }
 
     if values.is_some_and(|values| values != semaphores) {
-        return Err((
-            Error::InvalidArgument,
-            "semaphore values length does not match semaphore count".to_string(),
+        return Err(Error::new(
+            ErrorKind::InvalidArgument,
+            "semaphore values length does not match semaphore count",
         ));
     }
 
     if timeouts_ms.is_some_and(|timeouts_ms| timeouts_ms != semaphores) {
-        return Err((
-            Error::InvalidArgument,
-            "semaphore timeout length does not match semaphore count".to_string(),
+        return Err(Error::new(
+            ErrorKind::InvalidArgument,
+            "semaphore timeout length does not match semaphore count",
         ));
     }
 
@@ -325,7 +328,7 @@ impl Clone for Semaphore {
 
         Self {
             semaphore: self.semaphore,
-            device_arc: self.device_arc.clone(),
+            device: self.device.retained(),
             semaphore_type: self.semaphore_type,
         }
     }
@@ -367,7 +370,7 @@ mod tests {
         ] {
             assert_eq!(
                 validate_semaphore_counts(semaphores, values, timeouts_ms),
-                Err((Error::InvalidArgument, message.to_string()))
+                Err(Error::new(ErrorKind::InvalidArgument, message))
             );
         }
     }

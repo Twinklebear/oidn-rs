@@ -24,7 +24,7 @@ fn main() {
         .create_buffer_with_storage(PIXELS, Storage::Host)
         .expect("failed to allocate output buffer");
 
-    let mut filter = RayTracing::try_new(&device).unwrap();
+    let mut filter = RayTracing::try_new(&device).expect("unable to create OIDN filter");
     filter
         .filter_quality(Quality::Balanced)
         .srgb(true)
@@ -45,7 +45,7 @@ fn main() {
     }
 
     if let Err(error) = device.get_error() {
-        panic!("Open Image Denoise failed: {}", error.1);
+        panic!("Open Image Denoise failed: {error}");
     }
 
     for rgb in denoised.as_chunks::<3>().0 {

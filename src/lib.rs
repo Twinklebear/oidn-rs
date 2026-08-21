@@ -29,6 +29,7 @@
 //! ```
 
 use num_enum::TryFromPrimitive;
+use std::fmt;
 
 pub mod buffer;
 pub mod device;
@@ -48,9 +49,10 @@ pub use filter::{PendingFilter, RayTracing};
 #[doc(inline)]
 pub use semaphore::{ExternalSemaphoreTypeFlags, Semaphore};
 
+/// The kind of failure an [`Error`] reports.
 #[repr(i32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive)]
-pub enum Error {
+pub enum ErrorKind {
     None = sys::OIDNError_OIDN_ERROR_NONE,
     Unknown = sys::OIDNError_OIDN_ERROR_UNKNOWN,
     InvalidArgument = sys::OIDNError_OIDN_ERROR_INVALID_ARGUMENT,
@@ -60,6 +62,76 @@ pub enum Error {
     Canceled = sys::OIDNError_OIDN_ERROR_CANCELLED,
     InvalidImageDimensions,
 }
+
+impl ErrorKind {
+    /// A short description of the kind of failure.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ErrorKind::None => "no error",
+            ErrorKind::Unknown => "unknown error",
+            ErrorKind::InvalidArgument => "invalid argument",
+            ErrorKind::InvalidOperation => "invalid operation",
+            ErrorKind::OutOfMemory => "out of memory",
+            ErrorKind::UnsupportedFormat => "unsupported hardware",
+            ErrorKind::Canceled => "canceled",
+            ErrorKind::InvalidImageDimensions => "invalid image dimensions",
+        }
+    }
+}
+
+impl fmt::Display for ErrorKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// A failure reported by Open Image Denoise, or by this crate's own argument
+/// checks.
+///
+/// Open Image Denoise usually attaches a message describing what went wrong;
+/// [`Error::message`] returns it, and it is empty when there was none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Error {
+    kind: ErrorKind,
+    message: String,
+}
+
+impl Error {
+    pub(crate) fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+
+    /// The kind of failure, for matching on.
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
+    }
+
+    /// The message Open Image Denoise reported, which may be empty.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl From<ErrorKind> for Error {
+    fn from(kind: ErrorKind) -> Self {
+        Self::new(kind, String::new())
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.message.is_empty() {
+            write!(formatter, "{}", self.kind)
+        } else {
+            write!(formatter, "{}: {}", self.kind, self.message)
+        }
+    }
+}
+
+impl std::error::Error for Error {}
 
 #[repr(i32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, TryFromPrimitive, Default)]

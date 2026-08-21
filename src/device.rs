@@ -1,5 +1,5 @@
-use crate::Error;
 use crate::sys::*;
+use crate::{Error, ErrorKind};
 use std::sync::Arc;
 use std::{ffi::CStr, os::raw::c_char, ptr};
 
@@ -67,7 +67,7 @@ impl Device {
     /// Not every physical device supports every identifier, and drivers may
     /// even report inconsistent ones, so check more than one property where
     /// possible.
-    pub fn by_uuid(uuid: &[u8; 16]) -> Result<Self, (Error, String)> {
+    pub fn by_uuid(uuid: &[u8; 16]) -> Result<Self, Error> {
         Self::commit_new_handle(
             unsafe { oidnNewDeviceByUUID(uuid.as_ptr().cast()) },
             "oidnNewDeviceByUUID",
@@ -80,22 +80,22 @@ impl Device {
     ///
     /// See [`Device::by_uuid`] for the caveats that apply to selecting a
     /// physical device this way.
-    pub fn by_luid(luid: &[u8; 8]) -> Result<Self, (Error, String)> {
+    pub fn by_luid(luid: &[u8; 8]) -> Result<Self, Error> {
         Self::commit_new_handle(
             unsafe { oidnNewDeviceByLUID(luid.as_ptr().cast()) },
             "oidnNewDeviceByLUID",
         )
     }
 
-    fn commit_new_handle(handle: OIDNDevice, call: &str) -> Result<Self, (Error, String)> {
+    fn commit_new_handle(handle: OIDNDevice, call: &str) -> Result<Self, Error> {
         if handle.is_null() {
             // Errors that are not associated with a device, which includes a
             // device failing to be constructed, are reported on the null
             // device.
             return Err(match Self::error_from_raw_device(ptr::null_mut()) {
                 Err(err) => err,
-                Ok(()) => (
-                    Error::Unknown,
+                Ok(()) => Error::new(
+                    ErrorKind::Unknown,
                     format!("{call} returned null without setting an error"),
                 ),
             });
@@ -119,6 +119,23 @@ impl Device {
         Self(device, Arc::new(0))
     }
 
+    /// Returns another owned handle to this device.
+    ///
+    /// Objects created from a device keep one of these, so that the device
+    /// they were made by outlives them.
+    pub(crate) fn retained(&self) -> Self {
+        unsafe {
+            oidnRetainDevice(self.0);
+        }
+
+        Self(self.0, self.1.clone())
+    }
+
+    /// Whether both handles refer to the same device object.
+    pub(crate) fn is_same_device(&self, other: &Device) -> bool {
+        Arc::ptr_eq(&self.1, &other.1)
+    }
+
     /// # Safety
     /// Raw device must not be made invalid (e.g. by destroying it).
     pub unsafe fn raw(&self) -> OIDNDevice {
@@ -135,11 +152,11 @@ impl Device {
     /// error state before any operation whose only failure signal is that
     /// state. If you call into [`sys`](crate::sys) directly, query the error
     /// before handing the device back to the safe API.
-    pub fn get_error(&self) -> Result<(), (Error, String)> {
+    pub fn get_error(&self) -> Result<(), Error> {
         Self::error_from_raw_device(self.0)
     }
 
-    pub(crate) fn error_from_raw_device(device: OIDNDevice) -> Result<(), (Error, String)> {
+    pub(crate) fn error_from_raw_device(device: OIDNDevice) -> Result<(), Error> {
         let mut err_msg: *const c_char = ptr::null();
         let err = unsafe { oidnGetDeviceError(device, &mut err_msg as *mut *const c_char) };
 
@@ -152,16 +169,19 @@ impl Device {
                 unsafe { CStr::from_ptr(err_msg).to_string_lossy().to_string() }
             };
 
-            Err((err.try_into().unwrap_or(Error::Unknown), msg))
+            Err(Error::new(
+                err.try_into().unwrap_or(ErrorKind::Unknown),
+                msg,
+            ))
         }
     }
 
     /// Returns the pending device error, falling back to `fallback` when a C
     /// call reported failure by returning null without recording one.
-    pub(crate) fn take_error(&self, fallback: Error, call: &str) -> (Error, String) {
+    pub(crate) fn take_error(&self, fallback: ErrorKind, call: &str) -> Error {
         match self.get_error() {
             Err(err) => err,
-            Ok(()) => (
+            Ok(()) => Error::new(
                 fallback,
                 format!("{call} returned null without setting a device error"),
             ),
@@ -170,11 +190,7 @@ impl Device {
 
     /// Discards any error stored for the calling thread on this device.
     pub(crate) fn clear_error(&self) {
-        Self::clear_error_on_raw_device(self.0);
-    }
-
-    pub(crate) fn clear_error_on_raw_device(device: OIDNDevice) {
-        unsafe { oidnGetDeviceError(device, ptr::null_mut()) };
+        unsafe { oidnGetDeviceError(self.0, ptr::null_mut()) };
     }
 
     /// Waits until all asynchronous operations on the device have completed.

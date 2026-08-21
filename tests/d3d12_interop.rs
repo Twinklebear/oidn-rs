@@ -48,8 +48,8 @@ fn d3d12_shared_buffer_and_fence_round_trip() {
 
     let device = match oidn::Device::by_luid(&d3d12.adapter_luid()) {
         Ok(device) => device,
-        Err((err, msg)) => {
-            eprintln!("skipped: no OIDN device on the Direct3D 12 adapter: {err:?}: {msg}");
+        Err(err) => {
+            eprintln!("skipped: no OIDN device on the Direct3D 12 adapter: {err}");
             return;
         }
     };
@@ -124,7 +124,7 @@ fn import_buffer(device: &oidn::Device, d3d12: &D3d12, resource: &ID3D12Resource
     // A committed resource owns its allocation, so it has to be imported as a
     // dedicated one.
     let buffer = unsafe {
-        device.create_shared_buffer_from_win32_handle(
+        device.create_shared_buffer_from_raw_handle(
             ExternalMemoryTypeFlags::D3D12_RESOURCE | ExternalMemoryTypeFlags::DEDICATED,
             handle.0,
             None,
@@ -142,7 +142,7 @@ fn import_fence(device: &oidn::Device, d3d12: &D3d12, fence: &ID3D12Fence) -> oi
     let handle = d3d12.shared_handle(fence);
 
     let semaphore = unsafe {
-        device.create_shared_semaphore_from_win32_handle(
+        device.create_shared_semaphore_from_raw_handle(
             ExternalSemaphoreTypeFlags::D3D12_FENCE,
             handle.0,
             None,
@@ -455,8 +455,8 @@ fn d3d12_named_handles_cross_process_round_trip() {
             eprintln!("skipped: device cannot import Direct3D 12 fences");
             return;
         }
-        Err((err, msg)) => {
-            eprintln!("skipped: no OIDN device on the Direct3D 12 adapter: {err:?}: {msg}");
+        Err(err) => {
+            eprintln!("skipped: no OIDN device on the Direct3D 12 adapter: {err}");
             return;
         }
     }
@@ -565,7 +565,7 @@ fn child_denoises_named_handles() {
     let output = import_named_buffer(&device, &var(OUTPUT_ENV));
 
     let semaphore = unsafe {
-        device.create_shared_semaphore_from_win32_handle(
+        device.create_shared_semaphore_from_raw_handle(
             ExternalSemaphoreTypeFlags::D3D12_FENCE,
             std::ptr::null_mut(),
             Some(&wide(&var(FENCE_ENV))),
@@ -596,14 +596,14 @@ fn child_denoises_named_handles() {
 
 fn import_named_buffer(device: &oidn::Device, name: &str) -> oidn::Buffer {
     unsafe {
-        device.create_shared_buffer_from_win32_handle(
+        device.create_shared_buffer_from_raw_handle(
             ExternalMemoryTypeFlags::D3D12_RESOURCE | ExternalMemoryTypeFlags::DEDICATED,
             std::ptr::null_mut(),
             Some(&wide(name)),
             BYTE_SIZE,
         )
     }
-    .unwrap_or_else(|(err, msg)| panic!("importing `{name}` by name failed: {err:?}: {msg}"))
+    .unwrap_or_else(|err| panic!("importing `{name}` by name failed: {err}"))
 }
 
 fn var(name: &str) -> String {

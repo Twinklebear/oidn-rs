@@ -110,7 +110,7 @@ fn main() {
     let albedo: EXRData;
     let normal: EXRData;
 
-    let mut denoiser = oidn::RayTracing::try_new(&device).unwrap();
+    let mut denoiser = oidn::RayTracing::try_new(&device).expect("unable to create OIDN filter");
     denoiser
         .srgb(false)
         .hdr(true)

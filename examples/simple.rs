@@ -27,7 +27,7 @@ fn main() {
     let mut filter_output = vec![0.0f32; input_img.len()];
 
     let device = oidn::Device::new();
-    let mut filter = oidn::RayTracing::try_new(&device).unwrap();
+    let mut filter = oidn::RayTracing::try_new(&device).expect("unable to create OIDN filter");
     filter
         .srgb(true)
         .image_dimensions(input.width() as usize, input.height() as usize);

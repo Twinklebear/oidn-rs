@@ -28,7 +28,8 @@ fn main() {
         println!();
     }
     let device = oidn::Device::new();
-    let mut filter = oidn::filter::RayTracing::try_new(&device).unwrap();
+    let mut filter =
+        oidn::filter::RayTracing::try_new(&device).expect("unable to create OIDN filter");
     let buffer = device.create_buffer(&input).unwrap();
     let output_buffer = device.create_buffer(&[0.0; BUFFER_LEN]).unwrap();
     filter

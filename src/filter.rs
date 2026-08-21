@@ -1,4 +1,4 @@
-use crate::{Error, Quality, buffer::Buffer, device::Device, sys::*};
+use crate::{Error, ErrorKind, Quality, buffer::Buffer, device::Device, sys::*};
 use std::cell::Cell;
 
 /// A generic ray tracing denoising filter for denoising
@@ -27,7 +27,7 @@ impl<'a> RayTracing<'a> {
     }
 
     /// Creates an `RT` filter on `device`.
-    pub fn try_new(device: &'a Device) -> Result<RayTracing<'a>, (Error, String)> {
+    pub fn try_new(device: &'a Device) -> Result<RayTracing<'a>, Error> {
         unsafe {
             oidnRetainDevice(device.0);
         }
@@ -41,7 +41,7 @@ impl<'a> RayTracing<'a> {
                 oidnReleaseDevice(device.0);
             }
 
-            return Err(device.take_error(Error::Unknown, "oidnNewFilter"));
+            return Err(device.take_error(ErrorKind::Unknown, "oidnNewFilter"));
         }
 
         Ok(RayTracing {
@@ -322,18 +322,11 @@ impl<'a> RayTracing<'a> {
     fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), Error> {
         let color = match color {
             None => None,
-            Some(color) => Some(
-                self.device
-                    .create_buffer(color)
-                    .map_err(|(err, _msg)| err)?,
-            ),
+            Some(color) => Some(self.device.create_buffer(color)?),
         };
-        let out = self
-            .device
-            .create_buffer(output)
-            .map_err(|(err, _msg)| err)?;
+        let out = self.device.create_buffer(output)?;
         self.execute_filter_buffer(color.as_ref(), &out)?;
-        out.read_to_slice(output).map_err(|(err, _msg)| err)?;
+        out.read_to_slice(output)?;
         Ok(())
     }
 
@@ -342,7 +335,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnExecuteFilter(self.handle);
         }
-        self.device.get_error().map_err(|(err, _msg)| err)?;
+        self.device.get_error()?;
         Ok(())
     }
 
@@ -355,7 +348,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnExecuteFilterAsync(self.handle);
         }
-        self.device.get_error().map_err(|(err, _msg)| err)?;
+        self.device.get_error()?;
         Ok(PendingFilter {
             filter: self,
             _color: color,
@@ -373,7 +366,10 @@ impl<'a> RayTracing<'a> {
 
         if let Some(alb) = &self.albedo {
             if alb.size != self.img_dims.2 {
-                return Err(Error::InvalidImageDimensions);
+                return Err(Error::new(
+                    ErrorKind::InvalidImageDimensions,
+                    "albedo buffer size does not match the image dimensions",
+                ));
             }
             unsafe {
                 oidnSetFilterImage(
@@ -393,7 +389,10 @@ impl<'a> RayTracing<'a> {
             // not also given.
             if let Some(norm) = &self.normal {
                 if norm.size != self.img_dims.2 {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(Error::new(
+                        ErrorKind::InvalidImageDimensions,
+                        "normal buffer size does not match the image dimensions",
+                    ));
                 }
                 unsafe {
                     oidnSetFilterImage(
@@ -413,19 +412,31 @@ impl<'a> RayTracing<'a> {
         let color_buffer = match color {
             Some(color) => {
                 if !self.device.same_device_as_buf(color) {
-                    return Err(Error::InvalidArgument);
+                    return Err(Error::new(
+                        ErrorKind::InvalidArgument,
+                        "color buffer was not created by this device",
+                    ));
                 }
                 if color.size != self.img_dims.2 {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(Error::new(
+                        ErrorKind::InvalidImageDimensions,
+                        "color buffer size does not match the image dimensions",
+                    ));
                 }
                 color
             }
             None => {
                 if !self.device.same_device_as_buf(output) {
-                    return Err(Error::InvalidArgument);
+                    return Err(Error::new(
+                        ErrorKind::InvalidArgument,
+                        "output buffer was not created by this device",
+                    ));
                 }
                 if output.size != self.img_dims.2 {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(Error::new(
+                        ErrorKind::InvalidImageDimensions,
+                        "output buffer size does not match the image dimensions",
+                    ));
                 }
                 // actually this is a needed borrow, the compiler complains otherwise
                 #[allow(clippy::needless_borrow)]
@@ -446,10 +457,16 @@ impl<'a> RayTracing<'a> {
             );
         }
         if !self.device.same_device_as_buf(output) {
-            return Err(Error::InvalidArgument);
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "output buffer was not created by this device",
+            ));
         }
         if output.size != self.img_dims.2 {
-            return Err(Error::InvalidImageDimensions);
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "output buffer size does not match the image dimensions",
+            ));
         }
         unsafe {
             oidnSetFilterImage(
@@ -490,7 +507,7 @@ impl<'a> RayTracing<'a> {
             oidnCommitFilter(self.handle);
         }
 
-        self.device.get_error().map_err(|(err, _msg)| err)?;
+        self.device.get_error()?;
 
         Ok(())
     }
@@ -561,8 +578,8 @@ mod tests {
         assert!(filter.weights.is_none());
         assert!(!filter.weights_set.get());
 
-        if let Err((err, msg)) = device.get_error() {
-            panic!("OIDN device error after weights test: {err:?}: {msg}");
+        if let Err(err) = device.get_error() {
+            panic!("OIDN device error after weights test: {err}");
         }
     }
 }

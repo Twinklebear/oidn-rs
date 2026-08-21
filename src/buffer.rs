@@ -1,12 +1,11 @@
 use crate::sys::{
-    OIDNBuffer, OIDNDevice, oidnGetBufferData, oidnGetBufferSize, oidnGetBufferStorage,
-    oidnGetDeviceInt, oidnNewBuffer, oidnNewBufferWithStorage, oidnReadBuffer, oidnReadBufferAsync,
+    OIDNBuffer, oidnGetBufferData, oidnGetBufferSize, oidnGetBufferStorage, oidnGetDeviceInt,
+    oidnNewBuffer, oidnNewBufferWithStorage, oidnReadBuffer, oidnReadBufferAsync,
     oidnReleaseBuffer, oidnRetainBuffer, oidnWriteBuffer, oidnWriteBufferAsync,
 };
-use crate::{Device, Error, Storage};
+use crate::{Device, Error, ErrorKind, Storage};
 use std::mem;
 use std::os::raw::c_void;
-use std::sync::Arc;
 
 bitflags::bitflags! {
     /// External memory handle types supported by Open Image Denoise.
@@ -67,22 +66,23 @@ bitflags::bitflags! {
 
 pub struct Buffer {
     pub(crate) buf: OIDNBuffer,
-    pub(crate) device: OIDNDevice,
+    /// The device the buffer was created by, kept alive for as long as the
+    /// buffer is.
+    pub(crate) device: Device,
     pub(crate) size: usize,
     pub(crate) byte_size: usize,
-    pub(crate) device_arc: Arc<u8>,
 }
 
 impl Device {
     /// Creates a new buffer holding a copy of `contents`.
-    pub fn create_buffer(&self, contents: &[f32]) -> Result<Buffer, (Error, String)> {
+    pub fn create_buffer(&self, contents: &[f32]) -> Result<Buffer, Error> {
         let byte_size = mem::size_of_val(contents);
 
         self.clear_error();
 
         let buf = unsafe { oidnNewBuffer(self.0, byte_size) };
         if buf.is_null() {
-            return Err(self.take_error(Error::OutOfMemory, "oidnNewBuffer"));
+            return Err(self.take_error(ErrorKind::OutOfMemory, "oidnNewBuffer"));
         }
 
         unsafe {
@@ -98,10 +98,9 @@ impl Device {
 
         Ok(Buffer {
             buf,
-            device: self.0,
+            device: self.retained(),
             size: contents.len(),
             byte_size,
-            device_arc: self.1.clone(),
         })
     }
 
@@ -113,10 +112,10 @@ impl Device {
         &self,
         len: usize,
         storage: Storage,
-    ) -> Result<Buffer, (Error, String)> {
-        let byte_size = len.checked_mul(mem::size_of::<f32>()).ok_or((
-            Error::InvalidImageDimensions,
-            "buffer size overflow".to_string(),
+    ) -> Result<Buffer, Error> {
+        let byte_size = len.checked_mul(mem::size_of::<f32>()).ok_or(Error::new(
+            ErrorKind::InvalidImageDimensions,
+            "buffer size overflow",
         ))?;
 
         self.clear_error();
@@ -124,15 +123,14 @@ impl Device {
         let buf =
             unsafe { oidnNewBufferWithStorage(self.0, byte_size, storage.as_raw_oidn_storage()) };
         if buf.is_null() {
-            return Err(self.take_error(Error::OutOfMemory, "oidnNewBufferWithStorage"));
+            return Err(self.take_error(ErrorKind::OutOfMemory, "oidnNewBufferWithStorage"));
         }
 
         Ok(Buffer {
             buf,
-            device: self.0,
+            device: self.retained(),
             size: len,
             byte_size,
-            device_arc: self.1.clone(),
         })
     }
 
@@ -150,8 +148,15 @@ impl Device {
     /// POSIX file descriptor.
     ///
     /// Ownership of `fd` is transferred to Open Image Denoise on success; do
-    /// not close it yourself. Access to the memory has to be synchronized
-    /// with the exporting API, ideally with a [`Semaphore`](crate::Semaphore).
+    /// not close it yourself.
+    ///
+    /// Access to the memory must be synchronized with the exporting API. A
+    /// [`Semaphore`](crate::Semaphore) does that on the device, which is why it
+    /// is the efficient choice. The fallback is to synchronize on the host with
+    /// [`Device::sync`] and the graphics API's own waits, which costs a round
+    /// trip through the host; since importing semaphores is not supported by
+    /// every device, driver and OS, applications should implement that fallback
+    /// as well.
     ///
     /// # Safety
     ///
@@ -159,12 +164,12 @@ impl Device {
     /// least `byte_size` bytes long, exported by an API running on the same
     /// physical device as this one.
     #[cfg(unix)]
-    pub unsafe fn create_shared_buffer_from_fd(
+    pub unsafe fn create_shared_buffer_from_raw_fd(
         &self,
         memory_type: ExternalMemoryTypeFlags,
         fd: std::os::fd::RawFd,
         byte_size: usize,
-    ) -> Result<Buffer, (Error, String)> {
+    ) -> Result<Buffer, Error> {
         use crate::sys::oidnNewSharedBufferFromFD;
 
         self.clear_error();
@@ -187,9 +192,15 @@ impl Device {
     /// Either `handle` or `name` identifies the memory: pass the handle for an
     /// unnamed allocation, or a NUL-terminated UTF-16 `name` with a null
     /// handle to open a named one. Unlike a file descriptor, an NT handle is
-    /// not consumed by the import, so close it once this returns. Access to
-    /// the memory has to be synchronized with the exporting API, ideally with
-    /// a [`Semaphore`](crate::Semaphore).
+    /// not consumed by the import, so close it once this returns.
+    ///
+    /// Access to the memory must be synchronized with the exporting API. A
+    /// [`Semaphore`](crate::Semaphore) does that on the device, which is why it
+    /// is the efficient choice. The fallback is to synchronize on the host with
+    /// [`Device::sync`] and the graphics API's own waits, which costs a round
+    /// trip through the host; since importing semaphores is not supported by
+    /// every device, driver and OS, applications should implement that fallback
+    /// as well.
     ///
     /// # Safety
     ///
@@ -197,21 +208,21 @@ impl Device {
     /// and at least `byte_size` bytes long, exported by an API running on the
     /// same physical device as this one.
     #[cfg(windows)]
-    pub unsafe fn create_shared_buffer_from_win32_handle(
+    pub unsafe fn create_shared_buffer_from_raw_handle(
         &self,
         memory_type: ExternalMemoryTypeFlags,
         handle: std::os::windows::io::RawHandle,
         name: Option<&[u16]>,
         byte_size: usize,
-    ) -> Result<Buffer, (Error, String)> {
+    ) -> Result<Buffer, Error> {
         use crate::sys::oidnNewSharedBufferFromWin32Handle;
 
         if let Some(name) = name
             && name.last() != Some(&0)
         {
-            return Err((
-                Error::InvalidArgument,
-                "buffer name must be NUL-terminated UTF-16".to_string(),
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "buffer name must be NUL-terminated UTF-16",
             ));
         }
 
@@ -235,17 +246,16 @@ impl Device {
         buf: OIDNBuffer,
         byte_size: usize,
         call: &str,
-    ) -> Result<Buffer, (Error, String)> {
+    ) -> Result<Buffer, Error> {
         if buf.is_null() {
-            return Err(self.take_error(Error::InvalidArgument, call));
+            return Err(self.take_error(ErrorKind::InvalidArgument, call));
         }
 
         Ok(Buffer {
             buf,
-            device: self.0,
+            device: self.retained(),
             size: byte_size / mem::size_of::<f32>(),
             byte_size,
-            device_arc: self.1.clone(),
         })
     }
 
@@ -259,15 +269,14 @@ impl Device {
 
         Buffer {
             buf: buffer,
-            device: self.0,
+            device: self.retained(),
             size,
             byte_size,
-            device_arc: self.1.clone(),
         }
     }
 
     pub(crate) fn same_device_as_buf(&self, buf: &Buffer) -> bool {
-        Arc::ptr_eq(&self.1, &buf.device_arc)
+        self.is_same_device(&buf.device)
     }
 
     /// Starts an asynchronous write to an OIDN buffer.
@@ -290,18 +299,18 @@ impl Device {
         &'a self,
         buf: &'a mut Buffer,
         contents: &'a [f32],
-    ) -> Result<PendingBufferWrite<'a>, (Error, String)> {
+    ) -> Result<PendingBufferWrite<'a>, Error> {
         if !self.same_device_as_buf(buf) {
-            return Err((
-                Error::InvalidArgument,
-                "buffer was not created by this device".to_string(),
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "buffer was not created by this device",
             ));
         }
 
         if buf.size != contents.len() {
-            return Err((
-                Error::InvalidImageDimensions,
-                "buffer and source slice sizes do not match".to_string(),
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "buffer and source slice sizes do not match",
             ));
         }
 
@@ -346,18 +355,18 @@ impl Device {
         &'a self,
         buf: &'a mut Buffer,
         contents: &'a mut [f32],
-    ) -> Result<PendingBufferRead<'a>, (Error, String)> {
+    ) -> Result<PendingBufferRead<'a>, Error> {
         if !self.same_device_as_buf(buf) {
-            return Err((
-                Error::InvalidArgument,
-                "buffer was not created by this device".to_string(),
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "buffer was not created by this device",
             ));
         }
 
         if buf.size != contents.len() {
-            return Err((
-                Error::InvalidImageDimensions,
-                "buffer and destination slice sizes do not match".to_string(),
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "buffer and destination slice sizes do not match",
             ));
         }
 
@@ -385,50 +394,50 @@ impl Device {
 
 impl Buffer {
     /// Writes to the buffer, returns [None] if the sizes mismatch
-    pub fn write(&self, contents: &[f32]) -> Result<(), (Error, String)> {
+    pub fn write(&self, contents: &[f32]) -> Result<(), Error> {
         if self.size != contents.len() {
-            return Err((
-                Error::InvalidImageDimensions,
-                "buffer and source slice sizes do not match".to_string(),
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "buffer and source slice sizes do not match",
             ));
         }
 
         let byte_size = mem::size_of_val(contents);
 
-        Device::clear_error_on_raw_device(self.device);
+        self.device.clear_error();
 
         unsafe {
             oidnWriteBuffer(self.buf, 0, byte_size, contents.as_ptr() as *const _);
         }
 
-        Device::error_from_raw_device(self.device)
+        self.device.get_error()
     }
 
     /// Reads from the buffer to the array, returns [None] if the sizes mismatch
-    pub fn read_to_slice(&self, contents: &mut [f32]) -> Result<(), (Error, String)> {
+    pub fn read_to_slice(&self, contents: &mut [f32]) -> Result<(), Error> {
         if self.size != contents.len() {
-            return Err((
-                Error::InvalidImageDimensions,
-                "buffer and destination slice sizes do not match".to_string(),
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "buffer and destination slice sizes do not match",
             ));
         }
 
         let byte_size = mem::size_of_val(contents);
 
-        Device::clear_error_on_raw_device(self.device);
+        self.device.clear_error();
 
         unsafe {
             oidnReadBuffer(self.buf, 0, byte_size, contents.as_mut_ptr() as *mut _);
         }
 
-        Device::error_from_raw_device(self.device)
+        self.device.get_error()
     }
 
     /// Reads from the buffer
-    pub fn read(&self) -> Result<Vec<f32>, (Error, String)> {
+    pub fn read(&self) -> Result<Vec<f32>, Error> {
         let mut contents = vec![0.0; self.size];
 
-        Device::clear_error_on_raw_device(self.device);
+        self.device.clear_error();
 
         unsafe {
             oidnReadBuffer(
@@ -439,7 +448,7 @@ impl Buffer {
             );
         }
 
-        Device::error_from_raw_device(self.device)?;
+        self.device.get_error()?;
 
         Ok(contents)
     }
@@ -483,10 +492,9 @@ impl Clone for Buffer {
 
         Self {
             buf: self.buf,
-            device: self.device,
+            device: self.device.retained(),
             size: self.size,
             byte_size: self.byte_size,
-            device_arc: self.device_arc.clone(),
         }
     }
 }

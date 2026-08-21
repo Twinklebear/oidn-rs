@@ -1,4 +1,4 @@
-use crate::{Buffer, Error, Quality, Storage};
+use crate::{Buffer, Error, ErrorKind, Quality, Storage};
 use std::mem;
 
 fn buffer_or_skip(device: &crate::Device, contents: &[f32]) -> Option<Buffer> {
@@ -24,8 +24,18 @@ fn storage_buffer_or_skip(device: &crate::Device, len: usize, storage: Storage) 
 }
 
 fn assert_device_ok(device: &crate::Device) {
-    if let Err((err, str)) = device.get_error() {
-        panic!("test failed with {err:?}: {str}")
+    if let Err(err) = device.get_error() {
+        panic!("test failed with {err}")
+    }
+}
+
+/// Asserts the kind of a failure without pinning the message, which comes from
+/// Open Image Denoise for anything it rejects itself.
+#[track_caller]
+fn assert_error_kind<T>(result: Result<T, Error>, kind: crate::ErrorKind) {
+    match result {
+        Err(err) => assert_eq!(err.kind(), kind, "unexpected error: {err}"),
+        Ok(_) => panic!("expected {kind}, got Ok(..)"),
     }
 }
 
@@ -326,13 +336,13 @@ fn slice_filter_paths_execute_and_validate_dimensions() {
     filter.filter_in_place(&mut in_place).unwrap();
 
     let mut too_short = [0.0, 0.0];
-    assert_eq!(
+    assert_error_kind(
         filter.filter(&color, &mut too_short),
-        Err(Error::InvalidImageDimensions)
+        ErrorKind::InvalidImageDimensions,
     );
-    assert_eq!(
+    assert_error_kind(
         filter.filter_in_place(&mut too_short),
-        Err(Error::InvalidImageDimensions)
+        ErrorKind::InvalidImageDimensions,
     );
     assert_device_ok(&device);
 }
@@ -420,23 +430,23 @@ fn filter_buffer_rejects_invalid_dimensions_and_foreign_buffers() {
 
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(2, 1);
-    assert_eq!(
+    assert_error_kind(
         filter.filter_buffer(&color, &output),
-        Err(Error::InvalidImageDimensions)
+        ErrorKind::InvalidImageDimensions,
     );
 
     filter.image_dimensions(1, 1);
-    assert_eq!(
+    assert_error_kind(
         filter.filter_buffer(&foreign_color, &output),
-        Err(Error::InvalidArgument)
+        ErrorKind::InvalidArgument,
     );
-    assert_eq!(
+    assert_error_kind(
         filter.filter_buffer(&color, &foreign_output),
-        Err(Error::InvalidArgument)
+        ErrorKind::InvalidArgument,
     );
-    assert_eq!(
+    assert_error_kind(
         filter.filter_in_place_buffer(&foreign_output),
-        Err(Error::InvalidArgument)
+        ErrorKind::InvalidArgument,
     );
     assert_device_ok(&device);
     assert_device_ok(&foreign_device);
@@ -465,17 +475,17 @@ fn filter_rejects_auxiliary_buffers_with_invalid_dimensions() {
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
     assert!(filter.albedo_buffer(&wide_albedo).is_some());
-    assert_eq!(
+    assert_error_kind(
         filter.filter_buffer(&color, &output),
-        Err(Error::InvalidImageDimensions)
+        ErrorKind::InvalidImageDimensions,
     );
 
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
     assert!(filter.albedo_normal_buffer(&albedo, &wide_normal).is_some());
-    assert_eq!(
+    assert_error_kind(
         filter.filter_buffer(&color, &output),
-        Err(Error::InvalidImageDimensions)
+        ErrorKind::InvalidImageDimensions,
     );
 
     assert_device_ok(&device);
@@ -508,30 +518,30 @@ fn filter_async_rejects_invalid_dimensions_and_foreign_buffers() {
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
 
-    assert!(matches!(
+    assert_error_kind(
         unsafe { filter.filter_buffer_async(&too_short, &mut output) },
-        Err(Error::InvalidImageDimensions)
-    ));
-    assert!(matches!(
+        ErrorKind::InvalidImageDimensions,
+    );
+    assert_error_kind(
         unsafe { filter.filter_buffer_async(&color, &mut too_short_output) },
-        Err(Error::InvalidImageDimensions)
-    ));
-    assert!(matches!(
+        ErrorKind::InvalidImageDimensions,
+    );
+    assert_error_kind(
         unsafe { filter.filter_buffer_async(&foreign_color, &mut output) },
-        Err(Error::InvalidArgument)
-    ));
-    assert!(matches!(
+        ErrorKind::InvalidArgument,
+    );
+    assert_error_kind(
         unsafe { filter.filter_buffer_async(&color, &mut foreign_output) },
-        Err(Error::InvalidArgument)
-    ));
-    assert!(matches!(
+        ErrorKind::InvalidArgument,
+    );
+    assert_error_kind(
         unsafe { filter.filter_in_place_buffer_async(&mut too_short_output) },
-        Err(Error::InvalidImageDimensions)
-    ));
-    assert!(matches!(
+        ErrorKind::InvalidImageDimensions,
+    );
+    assert_error_kind(
         unsafe { filter.filter_in_place_buffer_async(&mut foreign_output) },
-        Err(Error::InvalidArgument)
-    ));
+        ErrorKind::InvalidArgument,
+    );
     assert_device_ok(&device);
     assert_device_ok(&foreign_device);
 }
@@ -651,16 +661,16 @@ fn weights_and_new_enum_variants_are_exposed() {
         crate::sys::OIDNStorage_OIDN_STORAGE_DEVICE
     );
     assert_eq!(
-        Error::try_from(crate::sys::OIDNError_OIDN_ERROR_CANCELLED),
-        Ok(Error::Canceled)
+        ErrorKind::try_from(crate::sys::OIDNError_OIDN_ERROR_CANCELLED),
+        Ok(ErrorKind::Canceled)
     );
     assert_eq!(
-        Error::try_from(crate::sys::OIDNError_OIDN_ERROR_INVALID_OPERATION),
-        Ok(Error::InvalidOperation)
+        ErrorKind::try_from(crate::sys::OIDNError_OIDN_ERROR_INVALID_OPERATION),
+        Ok(ErrorKind::InvalidOperation)
     );
     assert_eq!(
-        Error::try_from(crate::sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE),
-        Ok(Error::UnsupportedFormat)
+        ErrorKind::try_from(crate::sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE),
+        Ok(ErrorKind::UnsupportedFormat)
     );
     assert_device_ok(&device);
 }
@@ -737,15 +747,15 @@ fn external_memory_types_can_be_queried() {
 #[cfg(test)]
 #[test]
 fn devices_by_unknown_uuid_and_luid_report_an_error() {
-    let (uuid_error, _) = crate::Device::by_uuid(&[0; 16])
+    let uuid_error = crate::Device::by_uuid(&[0; 16])
         .err()
         .expect("an all-zero UUID should not match a physical device");
-    assert_ne!(uuid_error, Error::None);
+    assert_ne!(uuid_error.kind(), ErrorKind::None);
 
-    let (luid_error, _) = crate::Device::by_luid(&[0; 8])
+    let luid_error = crate::Device::by_luid(&[0; 8])
         .err()
         .expect("an all-zero LUID should not match a physical device");
-    assert_ne!(luid_error, Error::None);
+    assert_ne!(luid_error.kind(), ErrorKind::None);
 }
 
 #[cfg(test)]
@@ -766,9 +776,9 @@ fn external_semaphore_types_can_be_queried() {
 fn semaphore_signal_and_wait_reject_empty_lists() {
     let device = crate::Device::cpu();
 
-    let empty = (
-        Error::InvalidArgument,
-        "semaphore list must not be empty".to_string(),
+    let empty = Error::new(
+        ErrorKind::InvalidArgument,
+        "semaphore list must not be empty",
     );
 
     assert_eq!(
@@ -789,7 +799,7 @@ fn invalid_external_semaphore_fd_returns_error() {
     let device = crate::Device::cpu();
 
     let result = unsafe {
-        device.create_shared_semaphore_from_fd(crate::ExternalSemaphoreTypeFlags::OPAQUE_FD, -1)
+        device.create_shared_semaphore_from_raw_fd(crate::ExternalSemaphoreTypeFlags::OPAQUE_FD, -1)
     };
 
     assert!(result.is_err());
@@ -802,7 +812,7 @@ fn invalid_external_semaphore_win32_handle_returns_error() {
     let device = crate::Device::cpu();
 
     let result = unsafe {
-        device.create_shared_semaphore_from_win32_handle(
+        device.create_shared_semaphore_from_raw_handle(
             crate::ExternalSemaphoreTypeFlags::OPAQUE_WIN32,
             std::ptr::null_mut(),
             None,
@@ -820,7 +830,7 @@ fn external_semaphore_name_must_be_nul_terminated() {
 
     let name: Vec<u16> = "oidn-rs".encode_utf16().collect();
     let result = unsafe {
-        device.create_shared_semaphore_from_win32_handle(
+        device.create_shared_semaphore_from_raw_handle(
             crate::ExternalSemaphoreTypeFlags::OPAQUE_WIN32,
             std::ptr::null_mut(),
             Some(&name),
@@ -828,8 +838,51 @@ fn external_semaphore_name_must_be_nul_terminated() {
     };
 
     assert_eq!(
-        result.err().map(|(err, _msg)| err),
-        Some(Error::InvalidArgument)
+        result.err().map(|err| err.kind()),
+        Some(ErrorKind::InvalidArgument)
     );
     assert_device_ok(&device);
+}
+
+#[cfg(test)]
+#[test]
+fn errors_carry_the_device_message() {
+    let error = Error::new(
+        ErrorKind::InvalidArgument,
+        "semaphore list must not be empty",
+    );
+    assert_eq!(error.kind(), ErrorKind::InvalidArgument);
+    assert_eq!(error.message(), "semaphore list must not be empty");
+    assert_eq!(
+        error.to_string(),
+        "invalid argument: semaphore list must not be empty"
+    );
+
+    // Not every failure has a message to go with it.
+    let bare = Error::from(ErrorKind::OutOfMemory);
+    assert!(bare.message().is_empty());
+    assert_eq!(bare.to_string(), "out of memory");
+
+    // Usable through the std error trait, so `?` into Box<dyn Error> works.
+    let boxed: Box<dyn std::error::Error> = Box::new(error);
+    assert_eq!(
+        boxed.to_string(),
+        "invalid argument: semaphore list must not be empty"
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn buffers_outlive_the_device_that_made_them() {
+    let device = crate::Device::cpu();
+    let Some(buffer) = buffer_or_skip(&device, &[1.0]) else {
+        return;
+    };
+
+    // The buffer holds its own handle to the device, so dropping this one only
+    // gives up our share of it.
+    drop(device);
+
+    buffer.write(&[2.0]).unwrap();
+    assert_eq!(buffer.read().unwrap(), vec![2.0]);
 }

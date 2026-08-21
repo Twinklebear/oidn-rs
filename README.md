@@ -100,10 +100,10 @@ EXR files.
 Buffers and semaphores can be imported from a graphics API, so that rendering
 and denoising share the same memory instead of copying it through the host:
 
-- `Device::create_shared_buffer_from_fd` / `create_shared_buffer_from_win32_handle`
+- `Device::create_shared_buffer_from_raw_fd` / `create_shared_buffer_from_raw_handle`
   import memory exported by the other API, and `Device::external_memory_types`
   reports the handle types the device accepts.
-- `Device::create_shared_semaphore_from_fd` / `create_shared_semaphore_from_win32_handle`
+- `Device::create_shared_semaphore_from_raw_fd` / `create_shared_semaphore_from_raw_handle`
   import a semaphore or fence to synchronize access to that memory, with
   `Device::signal_semaphores_async` and `Device::wait_semaphores_async`, and
   `Device::external_semaphore_types` reports the handle types the device
