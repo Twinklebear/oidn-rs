@@ -119,12 +119,13 @@ host and synchronizes with `Device::sync`.
 
 Two Direct3D 12 round trips exercise this, one in a single process and one
 across two, where the child opens the shared objects by Win32 object name.
+They live in the `oidn-interop-tests` workspace member, so that the crate that
+drives Direct3D 12 stays out of this crate's dependencies on every platform.
 They need a GPU that can import Direct3D 12 resources and fences and skip
-themselves when the adapter cannot, so they are only meaningful on Windows with
-a supported GPU:
+themselves when the adapter cannot:
 
 ```
-cargo test --test d3d12_interop -- --nocapture
+cargo test -p oidn-interop-tests -- --nocapture
 ```
 
 Note that the importing process must outlive the exporting device's use of the

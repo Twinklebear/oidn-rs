@@ -24,7 +24,7 @@ include = [
 links = "OpenImageDenoise"
 
 [workspace]
-members = [".", "xtask"]
+members = [".", "xtask", "interop-tests"]
 default-members = ["."]
 resolver = "3"
 
@@ -35,19 +35,6 @@ bundled = ["ureq", "sha2", "flate2", "tar", "zip"]
 [dependencies]
 bitflags = "2.12"
 num_enum = "0.7.6"
-
-# Drives Direct3D 12 in the interop test. Cargo does not allow optional
-# dev-dependencies, so this is unconditional; the test itself skips unless the
-# GPU can import Direct3D 12 resources and fences.
-[target.'cfg(windows)'.dev-dependencies]
-windows = { version = "0.62", features = [
-    "Win32_Foundation",
-    "Win32_Graphics_Direct3D",
-    "Win32_Graphics_Direct3D12",
-    "Win32_Graphics_Dxgi_Common",
-    "Win32_Security",
-    "Win32_System_Threading",
-] }
 
 [build-dependencies]
 ureq = { version = "3.3", optional = true }

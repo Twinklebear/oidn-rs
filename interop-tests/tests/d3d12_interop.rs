@@ -12,7 +12,7 @@
 //! watch one run:
 //!
 //! ```text
-//! cargo test --test d3d12_interop -- --nocapture
+//! cargo test -p oidn-interop-tests -- --nocapture
 //! ```
 
 #![cfg(windows)]
