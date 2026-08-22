@@ -393,7 +393,8 @@ impl Device {
 }
 
 impl Buffer {
-    /// Writes to the buffer, returns [None] if the sizes mismatch
+    /// Writes `contents` to the buffer, which must be the same length as
+    /// the buffer.
     pub fn write(&self, contents: &[f32]) -> Result<(), Error> {
         if self.size != contents.len() {
             return Err(Error::new(
@@ -413,7 +414,8 @@ impl Buffer {
         self.device.get_error()
     }
 
-    /// Reads from the buffer to the array, returns [None] if the sizes mismatch
+    /// Reads the buffer into `contents`, which must be the same length as
+    /// the buffer.
     pub fn read_to_slice(&self, contents: &mut [f32]) -> Result<(), Error> {
         if self.size != contents.len() {
             return Err(Error::new(
@@ -433,7 +435,7 @@ impl Buffer {
         self.device.get_error()
     }
 
-    /// Reads from the buffer
+    /// Reads the whole buffer into a new [`Vec`].
     pub fn read(&self) -> Result<Vec<f32>, Error> {
         let mut contents = vec![0.0; self.size];
 

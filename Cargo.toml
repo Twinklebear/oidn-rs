@@ -31,16 +31,16 @@ resolver = "3"
 [features]
 default = ["pkg-config"]
 bundled = ["ureq", "sha2", "flate2", "tar", "zip"]
-# Direct3D 12 interop test, which needs a GPU that can import external
-# memory and semaphores.
-d3d12-interop = ["dep:windows"]
 
 [dependencies]
 bitflags = "2.12"
 num_enum = "0.7.6"
 
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", optional = true, features = [
+# Drives Direct3D 12 in the interop test. Cargo does not allow optional
+# dev-dependencies, so this is unconditional; the test itself skips unless the
+# GPU can import Direct3D 12 resources and fences.
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D12",
@@ -48,10 +48,6 @@ windows = { version = "0.62", optional = true, features = [
     "Win32_Security",
     "Win32_System_Threading",
 ] }
-
-[[test]]
-name = "d3d12_interop"
-required-features = ["d3d12-interop"]
 
 [build-dependencies]
 ureq = { version = "3.3", optional = true }

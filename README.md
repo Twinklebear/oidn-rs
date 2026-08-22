@@ -118,11 +118,12 @@ host and synchronizes with `Device::sync`.
 
 Two Direct3D 12 round trips exercise this, one in a single process and one
 across two, where the child opens the shared objects by Win32 object name.
-They need a GPU that can import Direct3D 12 resources and fences, skip
-themselves when the adapter cannot, and are not part of the default test run:
+They need a GPU that can import Direct3D 12 resources and fences and skip
+themselves when the adapter cannot, so they are only meaningful on Windows with
+a supported GPU:
 
 ```
-cargo test --features d3d12-interop --test d3d12_interop -- --nocapture
+cargo test --test d3d12_interop -- --nocapture
 ```
 
 Note that the importing process must outlive the exporting device's use of the

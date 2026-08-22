@@ -8,14 +8,14 @@
 //! memory and the synchronization holds.
 //!
 //! Importing external memory and semaphores is supported only by CUDA and HIP
-//! devices, so this needs a supported GPU and is not part of the default test
-//! run:
+//! devices, so these tests skip themselves unless the adapter can do it. To
+//! watch one run:
 //!
 //! ```text
-//! cargo test --features d3d12-interop --test d3d12_interop -- --nocapture
+//! cargo test --test d3d12_interop -- --nocapture
 //! ```
 
-#![cfg(all(windows, feature = "d3d12-interop"))]
+#![cfg(windows)]
 
 use std::ffi::c_void;
 
