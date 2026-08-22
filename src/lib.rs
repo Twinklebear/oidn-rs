@@ -58,7 +58,7 @@ pub enum ErrorKind {
     InvalidArgument = sys::OIDNError_OIDN_ERROR_INVALID_ARGUMENT,
     InvalidOperation = sys::OIDNError_OIDN_ERROR_INVALID_OPERATION,
     OutOfMemory = sys::OIDNError_OIDN_ERROR_OUT_OF_MEMORY,
-    UnsupportedFormat = sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE,
+    UnsupportedHardware = sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE,
     Canceled = sys::OIDNError_OIDN_ERROR_CANCELLED,
     InvalidImageDimensions,
 }
@@ -72,7 +72,7 @@ impl ErrorKind {
             ErrorKind::InvalidArgument => "invalid argument",
             ErrorKind::InvalidOperation => "invalid operation",
             ErrorKind::OutOfMemory => "out of memory",
-            ErrorKind::UnsupportedFormat => "unsupported hardware",
+            ErrorKind::UnsupportedHardware => "unsupported hardware",
             ErrorKind::Canceled => "canceled",
             ErrorKind::InvalidImageDimensions => "invalid image dimensions",
         }

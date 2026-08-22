@@ -668,7 +668,7 @@ fn weights_and_new_enum_variants_are_exposed() {
     );
     assert_eq!(
         ErrorKind::try_from(crate::sys::OIDNError_OIDN_ERROR_UNSUPPORTED_HARDWARE),
-        Ok(ErrorKind::UnsupportedFormat)
+        Ok(ErrorKind::UnsupportedHardware)
     );
     assert_device_ok(&device);
 }
@@ -676,10 +676,18 @@ fn weights_and_new_enum_variants_are_exposed() {
 #[cfg(test)]
 #[test]
 fn optional_devices_can_be_queried() {
-    let _ = crate::Device::sycl();
-    let _ = crate::Device::cuda();
-    let _ = crate::Device::hip();
-    let _ = crate::Device::metal();
+    // Whether any of these exist depends on the machine; what matters is that
+    // an absent one reports why rather than a bare None.
+    for device in [
+        crate::Device::sycl(),
+        crate::Device::cuda(),
+        crate::Device::hip(),
+        crate::Device::metal(),
+    ] {
+        if let Err(err) = device {
+            assert_ne!(err.kind(), ErrorKind::None);
+        }
+    }
 }
 
 #[cfg(test)]

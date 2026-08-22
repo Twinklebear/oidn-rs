@@ -14,54 +14,60 @@ use std::{ffi::CStr, os::raw::c_char, ptr};
 pub struct Device(pub(crate) OIDNDevice, pub(crate) Arc<u8>);
 
 impl Device {
-    /// Create a device using the fastest device available to run denoising
+    /// Creates a device using the fastest one available to run denoising.
+    ///
+    /// # Panics
+    /// - if no device could be created at all, which leaves nothing to denoise
+    ///   with
     pub fn new() -> Self {
-        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_DEFAULT)
-    }
-
-    fn create(device_type: OIDNDeviceType) -> Self {
-        let handle = get_handle(device_type);
-        unsafe {
-            oidnCommitDevice(handle);
-        }
-        Self(handle, Arc::new(0))
-    }
-
-    fn try_create(device_type: OIDNDeviceType) -> Option<Self> {
-        let handle = get_handle(device_type);
-        if !handle.is_null() {
-            unsafe {
-                oidnCommitDevice(handle);
-                Some(Self(handle, Arc::new(0)))
-            }
-        } else {
-            None
-        }
+        Self::create_or_panic(OIDNDeviceType_OIDN_DEVICE_TYPE_DEFAULT)
     }
 
     /// Creates a device that denoises on the CPU.
+    ///
+    /// # Panics
+    /// - if the CPU device could not be created
     pub fn cpu() -> Self {
-        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_CPU)
+        Self::create_or_panic(OIDNDeviceType_OIDN_DEVICE_TYPE_CPU)
     }
 
-    /// Creates a SYCL device, or returns `None` if there is none available.
-    pub fn sycl() -> Option<Self> {
-        Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_SYCL)
+    /// Creates a SYCL device.
+    ///
+    /// Fails when there is no such device, and also when there is one that
+    /// Open Image Denoise cannot drive - an unsupported driver, or a build
+    /// without support for it - which the error distinguishes.
+    pub fn sycl() -> Result<Self, Error> {
+        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_SYCL)
     }
 
-    /// Creates a CUDA device, or returns `None` if there is none available.
-    pub fn cuda() -> Option<Self> {
-        Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_CUDA)
+    /// Creates a CUDA device.
+    ///
+    /// See [`Device::sycl`] for what failure means here.
+    pub fn cuda() -> Result<Self, Error> {
+        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_CUDA)
     }
 
-    /// Creates a HIP device, or returns `None` if there is none available.
-    pub fn hip() -> Option<Self> {
-        Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_HIP)
+    /// Creates a HIP device.
+    ///
+    /// See [`Device::sycl`] for what failure means here.
+    pub fn hip() -> Result<Self, Error> {
+        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_HIP)
     }
 
-    /// Creates a Metal device, or returns `None` if there is none available.
-    pub fn metal() -> Option<Self> {
-        Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_METAL)
+    /// Creates a Metal device.
+    ///
+    /// See [`Device::sycl`] for what failure means here.
+    pub fn metal() -> Result<Self, Error> {
+        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_METAL)
+    }
+
+    fn create(device_type: OIDNDeviceType) -> Result<Self, Error> {
+        Self::commit_new_handle(get_handle(device_type), "oidnNewDevice")
+    }
+
+    fn create_or_panic(device_type: OIDNDeviceType) -> Self {
+        Self::create(device_type)
+            .unwrap_or_else(|err| panic!("failed to create the OIDN device: {err}"))
     }
 
     /// Creates a device on the physical device with the given UUID, as
@@ -72,10 +78,6 @@ impl Device {
     /// Not every physical device supports every identifier, and drivers may
     /// even report inconsistent ones, so check more than one property where
     /// possible.
-    ///
-    /// Unlike [`Device::cuda`] and the other device-type constructors, which
-    /// answer whether a kind of device is present at all, this looks up one
-    /// particular device and so reports why the lookup failed.
     pub fn by_uuid(uuid: &[u8; 16]) -> Result<Self, Error> {
         Self::commit_new_handle(
             unsafe { oidnNewDeviceByUUID(uuid.as_ptr().cast()) },
