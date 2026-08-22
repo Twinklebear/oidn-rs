@@ -1,6 +1,5 @@
-# Keeps the Direct3D 12 interop test, and the `windows` crate it needs to
-# drive Direct3D 12, out of the `oidn` manifest entirely. Nothing here is
-# published.
+# Keeps the graphics API interop tests, and the crates they need to drive
+# those APIs, out of the `oidn` manifest entirely. Nothing here is published.
 [package]
 name = "oidn-interop-tests"
 version = "0.0.0"
@@ -19,3 +18,7 @@ windows = { version = "0.62", features = [
     "Win32_Security",
     "Win32_System_Threading",
 ] }
+
+# Drives Vulkan in the interop test on platforms with POSIX file descriptors.
+[target.'cfg(unix)'.dev-dependencies]
+ash = "0.38"

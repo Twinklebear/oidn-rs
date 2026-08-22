@@ -117,16 +117,20 @@ Open Image Denoise 2.5.0 supports importing external semaphores only on CUDA
 CPU devices and an application always needs a fallback that copies through the
 host and synchronizes with `Device::sync`.
 
-Two Direct3D 12 round trips exercise this, one in a single process and one
-across two, where the child opens the shared objects by Win32 object name.
-They live in the `oidn-interop-tests` workspace member, so that the crate that
-drives Direct3D 12 stays out of this crate's dependencies on every platform.
-They need a GPU that can import Direct3D 12 resources and fences and skip
-themselves when the adapter cannot:
+Round trips through a real graphics API exercise this, in the
+`oidn-interop-tests` workspace member so that the crates driving those APIs
+stay out of this crate's dependencies on every platform:
 
 ```
 cargo test -p oidn-interop-tests -- --nocapture
 ```
+
+On Windows there are two Direct3D 12 round trips, one in a single process and
+one across two, where the child opens the shared objects by Win32 object name.
+On Unix there is a Vulkan round trip sharing memory and a timeline semaphore as
+POSIX file descriptors. Each skips itself, saying why, unless the machine has a
+GPU that can import the handles - a CUDA or HIP device, and a graphics driver on
+the same physical device.
 
 Note that the importing process must outlive the exporting device's use of the
 shared resources. Tearing it down first removes that device, after which its
