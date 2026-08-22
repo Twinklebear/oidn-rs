@@ -105,7 +105,7 @@ fn main() {
 
     let mut color = load_exr(&args.flag_c);
 
-    let device = oidn::Device::new();
+    let device = oidn::Device::new().expect("failed to create an OIDN device");
 
     let albedo: EXRData;
     let normal: EXRData;

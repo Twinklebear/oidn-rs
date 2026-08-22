@@ -596,7 +596,7 @@ mod tests {
 
     #[test]
     fn weights_replaces_and_clears_existing_shared_weights() {
-        let device = Device::cpu();
+        let device = Device::cpu().unwrap();
         let mut filter = RayTracing::try_new(&device).unwrap();
 
         // Simulate the state after configure_filter_buffer has installed

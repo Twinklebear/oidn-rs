@@ -16,19 +16,17 @@ pub struct Device(pub(crate) OIDNDevice, pub(crate) Arc<u8>);
 impl Device {
     /// Creates a device using the fastest one available to run denoising.
     ///
-    /// # Panics
-    /// - if no device could be created at all, which leaves nothing to denoise
-    ///   with
-    pub fn new() -> Self {
-        Self::create_or_panic(OIDNDeviceType_OIDN_DEVICE_TYPE_DEFAULT)
+    /// Fails when Open Image Denoise cannot create any device, which usually
+    /// means its device modules are not installed beside the library.
+    pub fn new() -> Result<Self, Error> {
+        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_DEFAULT)
     }
 
     /// Creates a device that denoises on the CPU.
     ///
-    /// # Panics
-    /// - if the CPU device could not be created
-    pub fn cpu() -> Self {
-        Self::create_or_panic(OIDNDeviceType_OIDN_DEVICE_TYPE_CPU)
+    /// See [`Device::new`] for what failure means here.
+    pub fn cpu() -> Result<Self, Error> {
+        Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_CPU)
     }
 
     /// Creates a SYCL device.
@@ -63,11 +61,6 @@ impl Device {
 
     fn create(device_type: OIDNDeviceType) -> Result<Self, Error> {
         Self::commit_new_handle(get_handle(device_type), "oidnNewDevice")
-    }
-
-    fn create_or_panic(device_type: OIDNDeviceType) -> Self {
-        Self::create(device_type)
-            .unwrap_or_else(|err| panic!("failed to create the OIDN device: {err}"))
     }
 
     /// Creates a device on the physical device with the given UUID, as
@@ -217,12 +210,6 @@ impl Drop for Device {
         unsafe {
             oidnReleaseDevice(self.0);
         }
-    }
-}
-
-impl Default for Device {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

@@ -26,7 +26,7 @@ fn main() {
 
     let mut filter_output = vec![0.0f32; input_img.len()];
 
-    let device = oidn::Device::new();
+    let device = oidn::Device::new().expect("failed to create an OIDN device");
     let mut filter = oidn::RayTracing::try_new(&device).expect("unable to create OIDN filter");
     filter
         .srgb(true)

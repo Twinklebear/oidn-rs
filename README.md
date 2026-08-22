@@ -77,7 +77,7 @@ fn main() {
     let input_img: Vec<f32> = // A float3 RGB image produced by your renderer
     let mut filter_output = vec![0.0f32; input_img.len()];
 
-    let device = oidn::Device::new();
+    let device = oidn::Device::new().expect("failed to create an OIDN device");
     oidn::RayTracing::try_new(&device)
         .expect("Failed to create the filter")
         // Optionally add float3 normal and albedo buffers as well

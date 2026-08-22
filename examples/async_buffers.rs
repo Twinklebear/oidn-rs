@@ -7,7 +7,7 @@ const HEIGHT: usize = 1;
 const PIXELS: usize = WIDTH * HEIGHT * 3;
 
 fn main() {
-    let device = Device::cpu();
+    let device = Device::cpu().expect("failed to create an OIDN device");
     let input = [0.18, 0.22, 0.27, 0.74, 0.68, 0.59];
 
     let mut color = device

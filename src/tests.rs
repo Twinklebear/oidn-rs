@@ -53,7 +53,7 @@ fn public_types_remain_send() {
 #[cfg(test)]
 #[test]
 fn buffer_read_write() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(buffer) = buffer_or_skip(&device, &[0.0]) else {
         return;
     };
@@ -68,7 +68,7 @@ fn buffer_read_write() {
 #[cfg(test)]
 #[test]
 fn buffer_size_mismatch_paths_return_none() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(buffer) = buffer_or_skip(&device, &[0.0]) else {
         return;
     };
@@ -82,7 +82,7 @@ fn buffer_size_mismatch_paths_return_none() {
 #[cfg(test)]
 #[test]
 fn buffer_import_read_write() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let raw_buffer = unsafe { crate::sys::oidnNewBuffer(device.raw(), mem::size_of::<f32>()) };
     if raw_buffer.is_null() {
         eprintln!("Test skipped due to buffer creation failing");
@@ -100,7 +100,7 @@ fn buffer_import_read_write() {
 #[cfg(test)]
 #[test]
 fn buffer_clone_and_from_keep_raw_buffer_alive() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(buffer) = buffer_or_skip(&device, &[1.0]) else {
         return;
     };
@@ -122,7 +122,7 @@ fn buffer_clone_and_from_keep_raw_buffer_alive() {
 #[cfg(test)]
 #[test]
 fn raw_buffer_byte_size_preserves_non_f32_sizes() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let raw_buffer = unsafe { crate::sys::oidnNewBuffer(device.raw(), 1) };
     if raw_buffer.is_null() {
         eprintln!("Test skipped due to buffer creation failing");
@@ -137,7 +137,7 @@ fn raw_buffer_byte_size_preserves_non_f32_sizes() {
 #[cfg(test)]
 #[test]
 fn create_buffer_with_storage_tracks_host_metadata() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(buffer) = storage_buffer_or_skip(&device, 2, Storage::Host) else {
         return;
     };
@@ -155,7 +155,7 @@ fn create_buffer_with_storage_tracks_host_metadata() {
 #[cfg(test)]
 #[test]
 fn create_buffer_with_storage_rejects_len_overflow() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let overflowing_len = usize::MAX / mem::size_of::<f32>() + 1;
     assert!(
         device
@@ -168,7 +168,7 @@ fn create_buffer_with_storage_rejects_len_overflow() {
 #[cfg(test)]
 #[test]
 fn buffer_async_read_write_waits_for_completion() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(mut buffer) = buffer_or_skip(&device, &[0.0, 0.0]) else {
         return;
     };
@@ -196,8 +196,8 @@ fn buffer_async_read_write_waits_for_completion() {
 #[cfg(test)]
 #[test]
 fn buffer_async_rejects_mismatched_lengths_and_devices() {
-    let device = crate::Device::cpu();
-    let foreign_device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
+    let foreign_device = crate::Device::cpu().unwrap();
     let Some(mut buffer) = buffer_or_skip(&device, &[0.0]) else {
         return;
     };
@@ -218,7 +218,7 @@ fn buffer_async_rejects_mismatched_lengths_and_devices() {
 #[cfg(test)]
 #[test]
 fn buffer_async_guards_sync_on_drop() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(mut buffer) = buffer_or_skip(&device, &[0.0, 0.0]) else {
         return;
     };
@@ -244,7 +244,7 @@ fn buffer_async_guards_sync_on_drop() {
 #[cfg(test)]
 #[test]
 fn filter_buffer_paths_execute_and_wait_for_async_guards() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let color_data = [0.2, 0.3, 0.4];
     let Some(color) = buffer_or_skip(&device, &color_data) else {
         return;
@@ -288,7 +288,7 @@ fn filter_buffer_paths_execute_and_wait_for_async_guards() {
 #[cfg(test)]
 #[test]
 fn filter_async_guard_syncs_on_drop() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let color_data = [0.2, 0.3, 0.4];
     let Some(color) = buffer_or_skip(&device, &color_data) else {
         return;
@@ -319,7 +319,7 @@ fn filter_async_guard_syncs_on_drop() {
 #[cfg(test)]
 #[test]
 fn slice_filter_paths_execute_and_validate_dimensions() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let color = [0.2, 0.3, 0.4];
     let mut output = [0.0, 0.0, 0.0];
     let mut in_place = color;
@@ -350,7 +350,7 @@ fn slice_filter_paths_execute_and_validate_dimensions() {
 #[cfg(test)]
 #[test]
 fn slice_auxiliary_images_are_reused_and_resized() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let color = [0.1, 0.2, 0.3];
     let mut output = [0.0, 0.0, 0.0];
     let larger_color = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
@@ -372,7 +372,7 @@ fn slice_auxiliary_images_are_reused_and_resized() {
 #[test]
 #[allow(deprecated)]
 fn slice_auxiliary_setters_cover_initial_reuse_and_resize_paths() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let color = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
     let mut output = [0.0; 6];
 
@@ -400,7 +400,7 @@ fn slice_auxiliary_setters_cover_initial_reuse_and_resize_paths() {
 #[cfg(test)]
 #[test]
 fn albedo_only_filter_executes_without_normal() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let color = [0.2, 0.3, 0.4];
     let mut output = [0.0, 0.0, 0.0];
 
@@ -413,8 +413,8 @@ fn albedo_only_filter_executes_without_normal() {
 #[cfg(test)]
 #[test]
 fn filter_buffer_rejects_invalid_dimensions_and_foreign_buffers() {
-    let device = crate::Device::cpu();
-    let foreign_device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
+    let foreign_device = crate::Device::cpu().unwrap();
     let Some(color) = buffer_or_skip(&device, &[0.0, 0.0, 0.0]) else {
         return;
     };
@@ -455,7 +455,7 @@ fn filter_buffer_rejects_invalid_dimensions_and_foreign_buffers() {
 #[cfg(test)]
 #[test]
 fn filter_rejects_auxiliary_buffers_with_invalid_dimensions() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(color) = buffer_or_skip(&device, &[0.0, 0.0, 0.0]) else {
         return;
     };
@@ -494,8 +494,8 @@ fn filter_rejects_auxiliary_buffers_with_invalid_dimensions() {
 #[cfg(test)]
 #[test]
 fn filter_async_rejects_invalid_dimensions_and_foreign_buffers() {
-    let device = crate::Device::cpu();
-    let foreign_device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
+    let foreign_device = crate::Device::cpu().unwrap();
     let Some(color) = buffer_or_skip(&device, &[0.0, 0.0, 0.0]) else {
         return;
     };
@@ -549,7 +549,7 @@ fn filter_async_rejects_invalid_dimensions_and_foreign_buffers() {
 #[cfg(test)]
 #[test]
 fn image_dimensions_drops_stale_aux_buffers() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(albedo) = buffer_or_skip(&device, &[0.5, 0.5, 0.5]) else {
         return;
     };
@@ -571,8 +571,8 @@ fn image_dimensions_drops_stale_aux_buffers() {
 #[cfg(test)]
 #[test]
 fn auxiliary_buffer_setters_reject_foreign_devices() {
-    let device = crate::Device::cpu();
-    let foreign_device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
+    let foreign_device = crate::Device::cpu().unwrap();
     let Some(albedo) = buffer_or_skip(&device, &[0.5, 0.5, 0.5]) else {
         return;
     };
@@ -610,7 +610,7 @@ fn auxiliary_buffer_setters_reject_foreign_devices() {
 #[cfg(test)]
 #[test]
 fn weights_and_new_enum_variants_are_exposed() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.weights(&[1, 2, 3, 4]).clear_weights();
 
@@ -692,11 +692,8 @@ fn optional_devices_can_be_queried() {
 
 #[cfg(test)]
 #[test]
-fn default_new_and_from_raw_devices_are_usable() {
-    let default_device = crate::Device::default();
-    assert_device_ok(&default_device);
-
-    let new_device = crate::Device::new();
+fn new_and_from_raw_devices_are_usable() {
+    let new_device = crate::Device::new().expect("the default device should be created");
     assert_device_ok(&new_device);
 
     let raw_device =
@@ -719,7 +716,7 @@ fn default_new_and_from_raw_devices_are_usable() {
 #[cfg(test)]
 #[test]
 fn stale_device_errors_do_not_fail_unrelated_calls() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
 
     // Leave an error pending on the device, as a raw `sys` call would. OIDN
     // only records an error when none is stored, so a stale error would both
@@ -742,7 +739,7 @@ fn stale_device_errors_do_not_fail_unrelated_calls() {
 fn external_memory_types_can_be_queried() {
     use crate::ExternalMemoryTypeFlags;
 
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
 
     let flags = device.external_memory_types();
 
@@ -769,7 +766,7 @@ fn devices_by_unknown_uuid_and_luid_report_an_error() {
 fn external_semaphore_types_can_be_queried() {
     use crate::ExternalSemaphoreTypeFlags;
 
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
 
     let flags = device.external_semaphore_types();
 
@@ -780,7 +777,7 @@ fn external_semaphore_types_can_be_queried() {
 #[cfg(test)]
 #[test]
 fn semaphore_signal_and_wait_reject_empty_lists() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
 
     let empty = Error::new(
         ErrorKind::InvalidArgument,
@@ -802,7 +799,7 @@ fn semaphore_signal_and_wait_reject_empty_lists() {
 #[cfg(all(test, unix))]
 #[test]
 fn invalid_external_semaphore_fd_returns_error() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
 
     let result = unsafe {
         device.create_shared_semaphore_from_raw_fd(crate::ExternalSemaphoreTypeFlags::OPAQUE_FD, -1)
@@ -815,7 +812,7 @@ fn invalid_external_semaphore_fd_returns_error() {
 #[cfg(all(test, windows))]
 #[test]
 fn invalid_external_semaphore_win32_handle_returns_error() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
 
     let result = unsafe {
         device.create_shared_semaphore_from_raw_handle(
@@ -832,7 +829,7 @@ fn invalid_external_semaphore_win32_handle_returns_error() {
 #[cfg(all(test, windows))]
 #[test]
 fn external_semaphore_name_must_be_nul_terminated() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
 
     let name: Vec<u16> = "oidn-rs".encode_utf16().collect();
     let result = unsafe {
@@ -880,7 +877,7 @@ fn errors_carry_the_device_message() {
 #[cfg(test)]
 #[test]
 fn buffers_outlive_the_device_that_made_them() {
-    let device = crate::Device::cpu();
+    let device = crate::Device::cpu().unwrap();
     let Some(buffer) = buffer_or_skip(&device, &[1.0]) else {
         return;
     };
