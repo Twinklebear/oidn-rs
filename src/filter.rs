@@ -83,20 +83,28 @@ impl<'a> RayTracing<'a> {
     pub fn albedo_normal(&mut self, albedo: &[f32], normal: &[f32]) -> &mut RayTracing<'a> {
         match self.albedo.as_mut().filter(|buf| buf.size == albedo.len()) {
             None => {
-                self.albedo = Some(self.device.create_buffer(albedo).unwrap());
+                self.albedo = Some(
+                    self.device
+                        .create_buffer(albedo)
+                        .expect("failed to allocate the albedo buffer"),
+                );
             }
             Some(buf) => {
                 buf.write(albedo)
-                    .expect("we check if the size is the same already");
+                    .expect("failed to write the albedo buffer");
             }
         }
         match self.normal.as_mut().filter(|buf| buf.size == normal.len()) {
             None => {
-                self.normal = Some(self.device.create_buffer(normal).unwrap());
+                self.normal = Some(
+                    self.device
+                        .create_buffer(normal)
+                        .expect("failed to allocate the normal buffer"),
+                );
             }
             Some(buf) => {
                 buf.write(normal)
-                    .expect("we check if the size is the same already");
+                    .expect("failed to write the normal buffer");
             }
         }
         self
@@ -110,11 +118,15 @@ impl<'a> RayTracing<'a> {
     pub fn albedo(&mut self, albedo: &[f32]) -> &mut RayTracing<'a> {
         match self.albedo.as_mut().filter(|buf| buf.size == albedo.len()) {
             None => {
-                self.albedo = Some(self.device.create_buffer(albedo).unwrap());
+                self.albedo = Some(
+                    self.device
+                        .create_buffer(albedo)
+                        .expect("failed to allocate the albedo buffer"),
+                );
             }
             Some(buf) => {
                 buf.write(albedo)
-                    .expect("we check if the size is the same already");
+                    .expect("failed to write the albedo buffer");
             }
         }
         self
@@ -129,20 +141,32 @@ impl<'a> RayTracing<'a> {
     /// This function is the same as [RayTracing::albedo_normal] but takes
     /// buffers instead
     ///
-    /// Returns [None] if either buffer was not created by this device
+    /// Fails if either buffer was not created by this device.
     pub fn albedo_normal_buffer(
         &mut self,
         albedo: impl Into<Buffer>,
         normal: impl Into<Buffer>,
-    ) -> Option<&mut RayTracing<'a>> {
+    ) -> Result<&mut RayTracing<'a>, Error> {
         let albedo = albedo.into();
         let normal = normal.into();
-        if !self.device.same_device_as_buf(&albedo) || !self.device.same_device_as_buf(&normal) {
-            return None;
+
+        if !self.device.same_device_as_buf(&albedo) {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "albedo buffer was not created by this device",
+            ));
         }
+
+        if !self.device.same_device_as_buf(&normal) {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "normal buffer was not created by this device",
+            ));
+        }
+
         self.albedo = Some(albedo);
         self.normal = Some(normal);
-        Some(self)
+        Ok(self)
     }
 
     /// Set an input auxiliary buffer containing the albedo per pixel (three
@@ -151,14 +175,22 @@ impl<'a> RayTracing<'a> {
     /// This function is the same as [RayTracing::albedo] but takes buffers
     /// instead
     ///
-    /// Returns [None] if albedo buffer was not created by this device
-    pub fn albedo_buffer(&mut self, albedo: impl Into<Buffer>) -> Option<&mut RayTracing<'a>> {
+    /// Fails if the buffer was not created by this device.
+    pub fn albedo_buffer(
+        &mut self,
+        albedo: impl Into<Buffer>,
+    ) -> Result<&mut RayTracing<'a>, Error> {
         let albedo = albedo.into();
+
         if !self.device.same_device_as_buf(&albedo) {
-            return None;
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "albedo buffer was not created by this device",
+            ));
         }
+
         self.albedo = Some(albedo);
-        Some(self)
+        Ok(self)
     }
 
     /// Set whether the color is HDR.
@@ -241,8 +273,10 @@ impl<'a> RayTracing<'a> {
         buffer.as_ref().is_some_and(|b| b.size != expected)
     }
 
-    /// sets the dimensions of the denoising image, if new width * new height
-    /// does not equal old width * old height
+    /// Sets the dimensions of the image to denoise.
+    ///
+    /// Any albedo or normal image already set is discarded if it no longer
+    /// holds three channels for every pixel of the new dimensions.
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
 

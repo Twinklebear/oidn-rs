@@ -22,6 +22,7 @@ cargo run -p xtask -- build-examples
 cargo run -p xtask -- build-test
 cargo run -p xtask -- generate-sys-bindings
 cargo run -p xtask -- download-oidn-package
+cargo run -p xtask -- check-coverage
 ```
 
 `build-test` uses `OIDN_DIR` when it is set. Otherwise it looks for an

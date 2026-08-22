@@ -474,7 +474,7 @@ fn filter_rejects_auxiliary_buffers_with_invalid_dimensions() {
 
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
-    assert!(filter.albedo_buffer(&wide_albedo).is_some());
+    assert!(filter.albedo_buffer(&wide_albedo).is_ok());
     assert_error_kind(
         filter.filter_buffer(&color, &output),
         ErrorKind::InvalidImageDimensions,
@@ -482,7 +482,7 @@ fn filter_rejects_auxiliary_buffers_with_invalid_dimensions() {
 
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
     filter.image_dimensions(1, 1);
-    assert!(filter.albedo_normal_buffer(&albedo, &wide_normal).is_some());
+    assert!(filter.albedo_normal_buffer(&albedo, &wide_normal).is_ok());
     assert_error_kind(
         filter.filter_buffer(&color, &output),
         ErrorKind::InvalidImageDimensions,
@@ -561,12 +561,7 @@ fn image_dimensions_drops_stale_aux_buffers() {
     };
 
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
-    assert!(
-        filter
-            .image_dimensions(1, 1)
-            .albedo_buffer(&albedo)
-            .is_some()
-    );
+    assert!(filter.image_dimensions(1, 1).albedo_buffer(&albedo).is_ok());
 
     filter.image_dimensions(2, 1);
     filter.filter_buffer(&color, &output).unwrap();
@@ -592,18 +587,21 @@ fn auxiliary_buffer_setters_reject_foreign_devices() {
     };
 
     let mut filter = crate::RayTracing::try_new(&device).unwrap();
-    assert!(filter.albedo_buffer(&albedo).is_some());
-    assert!(filter.albedo_normal_buffer(&albedo, &normal).is_some());
-    assert!(filter.albedo_buffer(&foreign_albedo).is_none());
-    assert!(
-        filter
-            .albedo_normal_buffer(&foreign_albedo, &normal)
-            .is_none()
+    assert!(filter.albedo_buffer(&albedo).is_ok());
+    assert!(filter.albedo_normal_buffer(&albedo, &normal).is_ok());
+
+    // A foreign buffer is now rejected with the reason, not a bare None.
+    assert_error_kind(
+        filter.albedo_buffer(&foreign_albedo),
+        ErrorKind::InvalidArgument,
     );
-    assert!(
-        filter
-            .albedo_normal_buffer(&albedo, &foreign_normal)
-            .is_none()
+    assert_error_kind(
+        filter.albedo_normal_buffer(&foreign_albedo, &normal),
+        ErrorKind::InvalidArgument,
+    );
+    assert_error_kind(
+        filter.albedo_normal_buffer(&albedo, &foreign_normal),
+        ErrorKind::InvalidArgument,
     );
     assert_device_ok(&device);
     assert_device_ok(&foreign_device);

@@ -39,22 +39,27 @@ impl Device {
         }
     }
 
+    /// Creates a device that denoises on the CPU.
     pub fn cpu() -> Self {
         Self::create(OIDNDeviceType_OIDN_DEVICE_TYPE_CPU)
     }
 
+    /// Creates a SYCL device, or returns `None` if there is none available.
     pub fn sycl() -> Option<Self> {
         Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_SYCL)
     }
 
+    /// Creates a CUDA device, or returns `None` if there is none available.
     pub fn cuda() -> Option<Self> {
         Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_CUDA)
     }
 
+    /// Creates a HIP device, or returns `None` if there is none available.
     pub fn hip() -> Option<Self> {
         Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_HIP)
     }
 
+    /// Creates a Metal device, or returns `None` if there is none available.
     pub fn metal() -> Option<Self> {
         Self::try_create(OIDNDeviceType_OIDN_DEVICE_TYPE_METAL)
     }
@@ -67,6 +72,10 @@ impl Device {
     /// Not every physical device supports every identifier, and drivers may
     /// even report inconsistent ones, so check more than one property where
     /// possible.
+    ///
+    /// Unlike [`Device::cuda`] and the other device-type constructors, which
+    /// answer whether a kind of device is present at all, this looks up one
+    /// particular device and so reports why the lookup failed.
     pub fn by_uuid(uuid: &[u8; 16]) -> Result<Self, Error> {
         Self::commit_new_handle(
             unsafe { oidnNewDeviceByUUID(uuid.as_ptr().cast()) },
