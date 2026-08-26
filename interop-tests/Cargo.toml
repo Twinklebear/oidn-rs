@@ -1,0 +1,24 @@
+# Keeps the graphics API interop tests, and the crates they need to drive
+# those APIs, out of the `oidn` manifest entirely. Nothing here is published.
+[package]
+name = "oidn-interop-tests"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dev-dependencies]
+oidn = { path = ".." }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D12",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Security",
+    "Win32_System_Threading",
+] }
+
+# Drives Vulkan in the interop test on platforms with POSIX file descriptors.
+[target.'cfg(unix)'.dev-dependencies]
+ash = "0.38"

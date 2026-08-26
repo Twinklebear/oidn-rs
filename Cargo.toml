@@ -1,8 +1,8 @@
 [package]
 name = "oidn"
-version = "2.4.1"
+version = "2.5.0"
 edition = "2024"
-authors = ["Will Usher <will@willusher.io>"]
+authors = ["Will Usher <will@willusher.io>", "hill <hill@hilll.dev>"]
 build = "build.rs"
 homepage = "https://github.com/Twinklebear/oidn-rs"
 documentation = "https://docs.rs/oidn"
@@ -24,7 +24,7 @@ include = [
 links = "OpenImageDenoise"
 
 [workspace]
-members = [".", "xtask"]
+members = [".", "xtask", "interop-tests"]
 default-members = ["."]
 resolver = "3"
 
@@ -33,6 +33,7 @@ default = ["pkg-config"]
 bundled = ["ureq", "sha2", "flate2", "tar", "zip"]
 
 [dependencies]
+bitflags = "2.12"
 num_enum = "0.7.6"
 
 [build-dependencies]

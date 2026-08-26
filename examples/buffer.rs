@@ -27,15 +27,16 @@ fn main() {
         }
         println!();
     }
-    let device = oidn::Device::new();
-    let mut filter = oidn::filter::RayTracing::new(&device);
+    let device = oidn::Device::new().expect("failed to create an OIDN device");
+    let mut filter =
+        oidn::filter::RayTracing::try_new(&device).expect("unable to create OIDN filter");
     let buffer = device.create_buffer(&input).unwrap();
     let output_buffer = device.create_buffer(&[0.0; BUFFER_LEN]).unwrap();
     filter
         .image_dimensions(WIDTH, HEIGHT)
         .filter_buffer(&buffer, &output_buffer)
         .unwrap();
-    let slice = output_buffer.read();
+    let slice = output_buffer.read().unwrap();
     println!();
     println!("denoised:");
     for y in 0..HEIGHT {

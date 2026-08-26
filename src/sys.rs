@@ -30,6 +30,7 @@ pub type hipStream_t = *mut ihipStream_t;
 pub type MTLDevice_id = *mut ::std::os::raw::c_void;
 pub type MTLCommandQueue_id = *mut ::std::os::raw::c_void;
 pub type MTLBuffer_id = *mut ::std::os::raw::c_void;
+pub type OIDNFlags = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn oidnGetNumPhysicalDevices() -> ::std::os::raw::c_int;
 }
@@ -228,7 +229,10 @@ pub const OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_D3D12_HEAP:
     OIDNExternalMemoryTypeFlag = 256;
 pub const OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_D3D12_RESOURCE:
     OIDNExternalMemoryTypeFlag = 512;
+pub const OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_DEDICATED:
+    OIDNExternalMemoryTypeFlag = 1073741824;
 pub type OIDNExternalMemoryTypeFlag = ::std::os::raw::c_int;
+pub type OIDNExternalMemoryTypeFlags = OIDNFlags;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct OIDNBufferImpl {
@@ -255,7 +259,7 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn oidnNewSharedBufferFromFD(
         device: OIDNDevice,
-        fdType: OIDNExternalMemoryTypeFlag,
+        fdType: OIDNExternalMemoryTypeFlags,
         fd: ::std::os::raw::c_int,
         byteSize: usize,
     ) -> OIDNBuffer;
@@ -263,7 +267,7 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn oidnNewSharedBufferFromWin32Handle(
         device: OIDNDevice,
-        handleType: OIDNExternalMemoryTypeFlag,
+        handleType: OIDNExternalMemoryTypeFlags,
         handle: *mut ::std::os::raw::c_void,
         name: *const ::std::os::raw::c_void,
         byteSize: usize,
@@ -318,6 +322,71 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn oidnReleaseBuffer(buffer: OIDNBuffer);
+}
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_NONE:
+    OIDNExternalSemaphoreTypeFlag = 0;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_OPAQUE_FD:
+    OIDNExternalSemaphoreTypeFlag = 1;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_OPAQUE_WIN32:
+    OIDNExternalSemaphoreTypeFlag = 2;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_OPAQUE_WIN32_KMT:
+    OIDNExternalSemaphoreTypeFlag = 4;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_D3D11_FENCE:
+    OIDNExternalSemaphoreTypeFlag = 8;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_D3D12_FENCE:
+    OIDNExternalSemaphoreTypeFlag = 16;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_KEYED_MUTEX:
+    OIDNExternalSemaphoreTypeFlag = 32;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_KEYED_MUTEX_KMT:
+    OIDNExternalSemaphoreTypeFlag = 64;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_TIMELINE_SEMAPHORE_FD:
+    OIDNExternalSemaphoreTypeFlag = 128;
+pub const OIDNExternalSemaphoreTypeFlag_OIDN_EXTERNAL_SEMAPHORE_TYPE_FLAG_TIMELINE_SEMAPHORE_WIN32 : OIDNExternalSemaphoreTypeFlag = 256 ;
+pub type OIDNExternalSemaphoreTypeFlag = ::std::os::raw::c_int;
+pub type OIDNExternalSemaphoreTypeFlags = OIDNFlags;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct OIDNSemaphoreImpl {
+    _unused: [u8; 0],
+}
+pub type OIDNSemaphore = *mut OIDNSemaphoreImpl;
+unsafe extern "C" {
+    pub fn oidnNewSharedSemaphoreFromFD(
+        device: OIDNDevice,
+        fdType: OIDNExternalSemaphoreTypeFlags,
+        fd: ::std::os::raw::c_int,
+    ) -> OIDNSemaphore;
+}
+unsafe extern "C" {
+    pub fn oidnNewSharedSemaphoreFromWin32Handle(
+        device: OIDNDevice,
+        handleType: OIDNExternalSemaphoreTypeFlags,
+        handle: *mut ::std::os::raw::c_void,
+        name: *const ::std::os::raw::c_void,
+    ) -> OIDNSemaphore;
+}
+unsafe extern "C" {
+    pub fn oidnSignalSemaphoresAsync(
+        device: OIDNDevice,
+        semaphores: *const OIDNSemaphore,
+        values: *const u64,
+        numSemaphores: ::std::os::raw::c_int,
+    );
+}
+unsafe extern "C" {
+    pub fn oidnWaitSemaphoresAsync(
+        device: OIDNDevice,
+        semaphores: *const OIDNSemaphore,
+        values: *const u64,
+        timeoutsMs: *const u32,
+        numSemaphores: ::std::os::raw::c_int,
+    );
+}
+unsafe extern "C" {
+    pub fn oidnRetainSemaphore(semaphore: OIDNSemaphore);
+}
+unsafe extern "C" {
+    pub fn oidnReleaseSemaphore(semaphore: OIDNSemaphore);
 }
 pub const OIDNQuality_OIDN_QUALITY_DEFAULT: OIDNQuality = 0;
 pub const OIDNQuality_OIDN_QUALITY_FAST: OIDNQuality = 4;

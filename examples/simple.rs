@@ -26,18 +26,14 @@ fn main() {
 
     let mut filter_output = vec![0.0f32; input_img.len()];
 
-    let device = oidn::Device::new();
-    let mut filter = oidn::RayTracing::new(&device);
+    let device = oidn::Device::new().expect("failed to create an OIDN device");
+    let mut filter = oidn::RayTracing::try_new(&device).expect("unable to create OIDN filter");
     filter
         .srgb(true)
         .image_dimensions(input.width() as usize, input.height() as usize);
     filter
         .filter(&input_img[..], &mut filter_output[..])
         .expect("Invalid input image dimensions?");
-
-    if let Err(e) = device.get_error() {
-        println!("Error denosing image: {}", e.1);
-    }
 
     let mut output_img = vec![0u8; filter_output.len()];
     for i in 0..filter_output.len() {

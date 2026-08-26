@@ -1,6 +1,6 @@
 #[cfg(not(feature = "bundled"))]
 compile_error!(
-    "bundled feature is required because of the shared code in `shared/helper.rs`, TODO remove the bundled feature from helper.rs"
+    "bundled feature is required because of the shared code in `shared/helper.rs` that is used by both build.rs and xtask/src/main.rs. Set OIDN_DIR or OIDN_BUNDLED_DIR to point at a local OpenImageDenoise installation to build against it."
 );
 
 use std::env;
@@ -22,6 +22,7 @@ Usage:
   cargo run -p xtask -- build-test [cargo-options...]
   cargo run -p xtask -- generate-sys-bindings [oidn.h] [src/sys.rs]
   cargo run -p xtask -- download-oidn-package
+  cargo run -p xtask -- check-coverage
 
 Aliases:
   build-examples-linux-mac -> build-examples
@@ -58,6 +59,7 @@ fn run() -> DynResult<()> {
         "build-test" | "build-test-mac" | "build-test-windows" => build_test(&root, &args)?,
         "generate-sys-bindings" => generate_sys_bindings(&root, &args)?,
         "download-oidn-package" | "download-oidn" => download_oidn_package(&root, &args)?,
+        "check-coverage" => check_coverage(&root, &args)?,
         other => return Err(format!("unknown xtask command `{other}`\n\n{HELP}").into()),
     }
 
@@ -67,6 +69,49 @@ fn run() -> DynResult<()> {
 fn build_examples(root: &Path, extra_args: &[OsString]) -> DynResult<()> {
     let envs = oidn_environment(root)?;
     run_cargo(root, &["build", "--examples"], extra_args, &envs)
+}
+
+fn check_coverage(root: &Path, args: &[OsString]) -> DynResult<()> {
+    if !args.is_empty() {
+        return Err("usage: cargo run -p xtask -- check-coverage".into());
+    }
+
+    let envs = oidn_environment(root)?;
+
+    run_cargo(root, &["llvm-cov", "clean", "--workspace"], &[], &envs)?;
+    run_cargo(
+        root,
+        &[
+            "llvm-cov",
+            "test",
+            "--workspace",
+            "--all-features",
+            "--all-targets",
+            "--no-report",
+        ],
+        &[],
+        &envs,
+    )?;
+
+    // Examples that need neither command line arguments nor input images.
+    for example in ["buffer", "async_buffers"] {
+        run_cargo(
+            root,
+            &["llvm-cov", "run", "--example", example, "--no-report"],
+            &[],
+            &envs,
+        )?;
+    }
+
+    run_cargo(root, &["llvm-cov", "report", "--html"], &[], &envs)?;
+    run_cargo(root, &["llvm-cov", "report"], &[], &envs)?;
+
+    println!(
+        "HTML report: {}",
+        root.join("target/llvm-cov/html/index.html").display()
+    );
+
+    Ok(())
 }
 
 fn build_test(root: &Path, extra_args: &[OsString]) -> DynResult<()> {
@@ -148,6 +193,9 @@ fn run_command(
     }
 }
 
+/// Returns the environment variables needed to build and run against the
+/// configured OIDN installation, or nothing if OIDN_DIR is not set and no
+/// local package was found.
 fn oidn_environment(root: &Path) -> DynResult<Vec<(String, OsString)>> {
     let Some(oidn_dir) = oidn_dir(root) else {
         return Ok(Vec::new());

@@ -7,7 +7,7 @@ const HEIGHT: usize = 1;
 const PIXELS: usize = WIDTH * HEIGHT * 3;
 
 fn main() {
-    let device = Device::cpu();
+    let device = Device::cpu().expect("failed to create an OIDN device");
     let input = [0.18, 0.22, 0.27, 0.74, 0.68, 0.59];
 
     let mut color = device
@@ -24,7 +24,7 @@ fn main() {
         .create_buffer_with_storage(PIXELS, Storage::Host)
         .expect("failed to allocate output buffer");
 
-    let mut filter = RayTracing::new(&device);
+    let mut filter = RayTracing::try_new(&device).expect("unable to create OIDN filter");
     filter
         .filter_quality(Quality::Balanced)
         .srgb(true)
@@ -45,10 +45,10 @@ fn main() {
     }
 
     if let Err(error) = device.get_error() {
-        panic!("Open Image Denoise failed: {}", error.1);
+        panic!("Open Image Denoise failed: {error}");
     }
 
-    for rgb in denoised.chunks_exact(3) {
+    for rgb in denoised.as_chunks::<3>().0 {
         println!("{:.4} {:.4} {:.4}", rgb[0], rgb[1], rgb[2]);
     }
 }

@@ -1,39 +1,106 @@
 use crate::sys::{
-    OIDNBuffer, oidnGetBufferData, oidnGetBufferSize, oidnGetBufferStorage, oidnNewBuffer,
-    oidnNewBufferWithStorage, oidnReadBuffer, oidnReadBufferAsync, oidnReleaseBuffer,
-    oidnRetainBuffer, oidnWriteBuffer, oidnWriteBufferAsync,
+    OIDNBuffer, oidnGetBufferData, oidnGetBufferSize, oidnGetBufferStorage, oidnGetDeviceInt,
+    oidnNewBuffer, oidnNewBufferWithStorage, oidnReadBuffer, oidnReadBufferAsync,
+    oidnReleaseBuffer, oidnRetainBuffer, oidnWriteBuffer, oidnWriteBufferAsync,
 };
-use crate::{Device, Storage};
+use crate::{Device, Error, ErrorKind, Storage};
 use std::mem;
 use std::os::raw::c_void;
-use std::sync::Arc;
+
+bitflags::bitflags! {
+    /// External memory handle types supported by Open Image Denoise.
+    ///
+    /// Query the types a device supports with [`Device::external_memory_types`].
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+    pub struct ExternalMemoryTypeFlags: u32 {
+        /// Opaque POSIX file descriptor handle.
+        const OPAQUE_FD =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD as u32;
+
+        /// Opaque NT handle.
+        const OPAQUE_WIN32 =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32 as u32;
+
+        /// Opaque global share (KMT) handle.
+        const OPAQUE_WIN32_KMT =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32_KMT as u32;
+
+        /// NT handle returned by `IDXGIResource1::CreateSharedHandle`
+        /// referring to a Direct3D 11 texture resource.
+        const D3D11_TEXTURE =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_D3D11_TEXTURE as u32;
+
+        /// Global share (KMT) handle returned by
+        /// `IDXGIResource::GetSharedHandle` referring to a Direct3D 11 texture
+        /// resource.
+        const D3D11_TEXTURE_KMT =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_D3D11_TEXTURE_KMT as u32;
+
+        /// NT handle returned by `IDXGIResource1::CreateSharedHandle`
+        /// referring to a Direct3D 11 resource.
+        const D3D11_RESOURCE =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_D3D11_RESOURCE as u32;
+
+        /// Global share (KMT) handle returned by
+        /// `IDXGIResource::GetSharedHandle` referring to a Direct3D 11
+        /// resource.
+        const D3D11_RESOURCE_KMT =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_D3D11_RESOURCE_KMT as u32;
+
+        /// NT handle returned by `ID3D12Device::CreateSharedHandle` referring
+        /// to a Direct3D 12 heap resource.
+        const D3D12_HEAP =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_D3D12_HEAP as u32;
+
+        /// NT handle returned by `ID3D12Device::CreateSharedHandle` referring
+        /// to a Direct3D 12 committed resource.
+        const D3D12_RESOURCE =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_D3D12_RESOURCE as u32;
+
+        /// Modifier indicating that the external memory has a dedicated
+        /// allocation, combined with one of the handle types above.
+        const DEDICATED =
+            crate::sys::OIDNExternalMemoryTypeFlag_OIDN_EXTERNAL_MEMORY_TYPE_FLAG_DEDICATED as u32;
+    }
+}
 
 pub struct Buffer {
     pub(crate) buf: OIDNBuffer,
+    /// The device the buffer was created by, kept alive for as long as the
+    /// buffer is.
+    pub(crate) device: Device,
     pub(crate) size: usize,
     pub(crate) byte_size: usize,
-    pub(crate) device_arc: Arc<u8>,
 }
 
 impl Device {
-    /// Creates a new buffer from a slice, returns None if buffer creation
-    /// failed
-    pub fn create_buffer(&self, contents: &[f32]) -> Option<Buffer> {
+    /// Creates a new buffer holding a copy of `contents`.
+    pub fn create_buffer(&self, contents: &[f32]) -> Result<Buffer, Error> {
         let byte_size = mem::size_of_val(contents);
-        let buffer = unsafe {
-            let buf = oidnNewBuffer(self.0, byte_size);
-            if buf.is_null() {
-                return None;
-            } else {
-                oidnWriteBuffer(buf, 0, byte_size, contents.as_ptr() as *const _);
-                buf
+
+        self.clear_error();
+
+        let buf = unsafe { oidnNewBuffer(self.0, byte_size) };
+        if buf.is_null() {
+            return Err(self.take_error(ErrorKind::OutOfMemory, "oidnNewBuffer"));
+        }
+
+        unsafe {
+            oidnWriteBuffer(buf, 0, byte_size, contents.as_ptr() as *const _);
+        }
+
+        if let Err(err) = self.get_error() {
+            unsafe {
+                oidnReleaseBuffer(buf);
             }
-        };
-        Some(Buffer {
-            buf: buffer,
+            return Err(err);
+        }
+
+        Ok(Buffer {
+            buf,
+            device: self.retained(),
             size: contents.len(),
             byte_size,
-            device_arc: self.1.clone(),
         })
     }
 
@@ -41,39 +108,175 @@ impl Device {
     ///
     /// The size is expressed as a number of `f32` values to match the rest of
     /// the safe buffer API.
-    pub fn create_buffer_with_storage(&self, len: usize, storage: Storage) -> Option<Buffer> {
-        let byte_size = len.checked_mul(mem::size_of::<f32>())?;
-        let buffer =
+    pub fn create_buffer_with_storage(
+        &self,
+        len: usize,
+        storage: Storage,
+    ) -> Result<Buffer, Error> {
+        let byte_size = len.checked_mul(mem::size_of::<f32>()).ok_or(Error::new(
+            ErrorKind::InvalidImageDimensions,
+            "buffer size overflow",
+        ))?;
+
+        self.clear_error();
+
+        let buf =
             unsafe { oidnNewBufferWithStorage(self.0, byte_size, storage.as_raw_oidn_storage()) };
-        if buffer.is_null() {
-            None
-        } else {
-            Some(Buffer {
-                buf: buffer,
-                size: len,
-                byte_size,
-                device_arc: self.1.clone(),
-            })
+        if buf.is_null() {
+            return Err(self.take_error(ErrorKind::OutOfMemory, "oidnNewBufferWithStorage"));
         }
+
+        Ok(Buffer {
+            buf,
+            device: self.retained(),
+            size: len,
+            byte_size,
+        })
+    }
+
+    /// Returns the external memory handle types this device can import.
+    ///
+    /// The result is empty on devices without external memory support, which
+    /// includes every CPU device.
+    pub fn external_memory_types(&self) -> ExternalMemoryTypeFlags {
+        let flags = unsafe { oidnGetDeviceInt(self.0, b"externalMemoryTypes\0" as *const _ as _) };
+
+        ExternalMemoryTypeFlags::from_bits_truncate(flags as u32)
+    }
+
+    /// Imports a buffer backed by memory shared from another API through a
+    /// POSIX file descriptor.
+    ///
+    /// Ownership of `fd` is transferred to Open Image Denoise on success; do
+    /// not close it yourself.
+    ///
+    /// Access to the memory must be synchronized with the exporting API. A
+    /// [`Semaphore`](crate::Semaphore) does that on the device, which is why it
+    /// is the efficient choice. The fallback is to synchronize on the host with
+    /// [`Device::sync`] and the graphics API's own waits, which costs a round
+    /// trip through the host; since importing semaphores is not supported by
+    /// every device, driver and OS, applications should implement that fallback
+    /// as well.
+    ///
+    /// # Safety
+    ///
+    /// `fd` must be a valid handle for external memory of `memory_type` and at
+    /// least `byte_size` bytes long, exported by an API running on the same
+    /// physical device as this one.
+    #[cfg(unix)]
+    pub unsafe fn create_shared_buffer_from_raw_fd(
+        &self,
+        memory_type: ExternalMemoryTypeFlags,
+        fd: std::os::fd::RawFd,
+        byte_size: usize,
+    ) -> Result<Buffer, Error> {
+        use crate::sys::oidnNewSharedBufferFromFD;
+
+        self.clear_error();
+
+        let buf = unsafe {
+            oidnNewSharedBufferFromFD(
+                self.0,
+                memory_type.bits() as crate::sys::OIDNExternalMemoryTypeFlags,
+                fd,
+                byte_size,
+            )
+        };
+
+        self.shared_buffer(buf, byte_size, "oidnNewSharedBufferFromFD")
+    }
+
+    /// Imports a buffer backed by memory shared from another API through a
+    /// Win32 handle.
+    ///
+    /// Either `handle` or `name` identifies the memory: pass the handle for an
+    /// unnamed allocation, or a NUL-terminated UTF-16 `name` with a null
+    /// handle to open a named one. Unlike a file descriptor, an NT handle is
+    /// not consumed by the import, so close it once this returns.
+    ///
+    /// Access to the memory must be synchronized with the exporting API. A
+    /// [`Semaphore`](crate::Semaphore) does that on the device, which is why it
+    /// is the efficient choice. The fallback is to synchronize on the host with
+    /// [`Device::sync`] and the graphics API's own waits, which costs a round
+    /// trip through the host; since importing semaphores is not supported by
+    /// every device, driver and OS, applications should implement that fallback
+    /// as well.
+    ///
+    /// # Safety
+    ///
+    /// `handle` must be a valid handle for external memory of `memory_type`
+    /// and at least `byte_size` bytes long, exported by an API running on the
+    /// same physical device as this one.
+    #[cfg(windows)]
+    pub unsafe fn create_shared_buffer_from_raw_handle(
+        &self,
+        memory_type: ExternalMemoryTypeFlags,
+        handle: std::os::windows::io::RawHandle,
+        name: Option<&[u16]>,
+        byte_size: usize,
+    ) -> Result<Buffer, Error> {
+        use crate::sys::oidnNewSharedBufferFromWin32Handle;
+
+        if let Some(name) = name
+            && name.last() != Some(&0)
+        {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "buffer name must be NUL-terminated UTF-16",
+            ));
+        }
+
+        self.clear_error();
+
+        let buf = unsafe {
+            oidnNewSharedBufferFromWin32Handle(
+                self.0,
+                memory_type.bits() as crate::sys::OIDNExternalMemoryTypeFlags,
+                handle as *mut _,
+                name.map_or(std::ptr::null(), |name| name.as_ptr() as *const _),
+                byte_size,
+            )
+        };
+
+        self.shared_buffer(buf, byte_size, "oidnNewSharedBufferFromWin32Handle")
+    }
+
+    fn shared_buffer(
+        &self,
+        buf: OIDNBuffer,
+        byte_size: usize,
+        call: &str,
+    ) -> Result<Buffer, Error> {
+        if buf.is_null() {
+            return Err(self.take_error(ErrorKind::InvalidArgument, call));
+        }
+
+        Ok(Buffer {
+            buf,
+            device: self.retained(),
+            size: byte_size / mem::size_of::<f32>(),
+            byte_size,
+        })
     }
 
     /// # Safety
-    /// Raw buffer must not be invalid (e.g. destroyed, null ect.)
+    /// Raw buffer must not be invalid (e.g. destroyed, null etc.)
     ///
     /// Raw buffer must have been created by this device
     pub unsafe fn create_buffer_from_raw(&self, buffer: OIDNBuffer) -> Buffer {
         let byte_size = unsafe { oidnGetBufferSize(buffer) };
         let size = byte_size / mem::size_of::<f32>();
+
         Buffer {
             buf: buffer,
+            device: self.retained(),
             size,
             byte_size,
-            device_arc: self.1.clone(),
         }
     }
 
     pub(crate) fn same_device_as_buf(&self, buf: &Buffer) -> bool {
-        self.1.as_ref() as *const _ as isize == buf.device_arc.as_ref() as *const _ as isize
+        self.is_same_device(&buf.device)
     }
 
     /// Starts an asynchronous write to an OIDN buffer.
@@ -88,14 +291,31 @@ impl Device {
     /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be waited
     /// or dropped before the source slice or buffer are accessed, mutated, or
     /// released.
+    ///
+    /// The safe Buffer API treats buffers as `[f32]`.
+    /// If the raw buffer size is not a multiple of `size_of::<f32>()`,
+    /// trailing bytes are inaccessible through the safe API.
     pub unsafe fn write_buffer_async<'a>(
         &'a self,
         buf: &'a mut Buffer,
         contents: &'a [f32],
-    ) -> Option<PendingBufferWrite<'a>> {
-        if !self.same_device_as_buf(buf) || buf.size != contents.len() {
-            return None;
+    ) -> Result<PendingBufferWrite<'a>, Error> {
+        if !self.same_device_as_buf(buf) {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "buffer was not created by this device",
+            ));
         }
+
+        if buf.size != contents.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "buffer and source slice sizes do not match",
+            ));
+        }
+
+        self.clear_error();
+
         unsafe {
             oidnWriteBufferAsync(
                 buf.buf,
@@ -104,7 +324,10 @@ impl Device {
                 contents.as_ptr() as *const _,
             );
         }
-        Some(PendingBufferWrite {
+
+        self.get_error()?;
+
+        Ok(PendingBufferWrite {
             device: self,
             _buffer: buf,
             _contents: contents,
@@ -124,14 +347,31 @@ impl Device {
     /// [`std::mem::forget`] or [`std::mem::ManuallyDrop`]. It must be waited
     /// or dropped before the destination slice or buffer are accessed, mutated,
     /// or released.
+    ///
+    /// The safe Buffer API treats buffers as `[f32]`.
+    /// If the raw buffer size is not a multiple of `size_of::<f32>()`,
+    /// trailing bytes are inaccessible through the safe API.
     pub unsafe fn read_buffer_async<'a>(
         &'a self,
         buf: &'a mut Buffer,
         contents: &'a mut [f32],
-    ) -> Option<PendingBufferRead<'a>> {
-        if !self.same_device_as_buf(buf) || buf.size != contents.len() {
-            return None;
+    ) -> Result<PendingBufferRead<'a>, Error> {
+        if !self.same_device_as_buf(buf) {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "buffer was not created by this device",
+            ));
         }
+
+        if buf.size != contents.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "buffer and destination slice sizes do not match",
+            ));
+        }
+
+        self.clear_error();
+
         unsafe {
             oidnReadBufferAsync(
                 buf.buf,
@@ -140,7 +380,10 @@ impl Device {
                 contents.as_mut_ptr() as *mut _,
             );
         }
-        Some(PendingBufferRead {
+
+        self.get_error()?;
+
+        Ok(PendingBufferRead {
             device: self,
             _buffer: buf,
             _contents: contents,
@@ -150,35 +393,54 @@ impl Device {
 }
 
 impl Buffer {
-    /// Writes to the buffer, returns [None] if the sizes mismatch
-    pub fn write(&self, contents: &[f32]) -> Option<()> {
+    /// Writes `contents` to the buffer, which must be the same length as
+    /// the buffer.
+    pub fn write(&self, contents: &[f32]) -> Result<(), Error> {
         if self.size != contents.len() {
-            None
-        } else {
-            let byte_size = mem::size_of_val(contents);
-            unsafe {
-                oidnWriteBuffer(self.buf, 0, byte_size, contents.as_ptr() as *const _);
-            }
-            Some(())
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "buffer and source slice sizes do not match",
+            ));
         }
+
+        let byte_size = mem::size_of_val(contents);
+
+        self.device.clear_error();
+
+        unsafe {
+            oidnWriteBuffer(self.buf, 0, byte_size, contents.as_ptr() as *const _);
+        }
+
+        self.device.get_error()
     }
 
-    /// Reads from the buffer to the array, returns [None] if the sizes mismatch
-    pub fn read_to_slice(&self, contents: &mut [f32]) -> Option<()> {
+    /// Reads the buffer into `contents`, which must be the same length as
+    /// the buffer.
+    pub fn read_to_slice(&self, contents: &mut [f32]) -> Result<(), Error> {
         if self.size != contents.len() {
-            None
-        } else {
-            let byte_size = mem::size_of_val(contents);
-            unsafe {
-                oidnReadBuffer(self.buf, 0, byte_size, contents.as_mut_ptr() as *mut _);
-            }
-            Some(())
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "buffer and destination slice sizes do not match",
+            ));
         }
+
+        let byte_size = mem::size_of_val(contents);
+
+        self.device.clear_error();
+
+        unsafe {
+            oidnReadBuffer(self.buf, 0, byte_size, contents.as_mut_ptr() as *mut _);
+        }
+
+        self.device.get_error()
     }
 
-    /// Reads from the buffer
-    pub fn read(&self) -> Vec<f32> {
+    /// Reads the whole buffer into a new [`Vec`].
+    pub fn read(&self) -> Result<Vec<f32>, Error> {
         let mut contents = vec![0.0; self.size];
+
+        self.device.clear_error();
+
         unsafe {
             oidnReadBuffer(
                 self.buf,
@@ -187,8 +449,12 @@ impl Buffer {
                 contents.as_mut_ptr() as *mut _,
             );
         }
-        contents
+
+        self.device.get_error()?;
+
+        Ok(contents)
     }
+
     /// # Safety
     /// Raw buffer must not be made invalid (e.g. by destroying it)
     pub unsafe fn raw(&self) -> OIDNBuffer {
@@ -225,11 +491,12 @@ impl Clone for Buffer {
         unsafe {
             oidnRetainBuffer(self.buf);
         }
+
         Self {
             buf: self.buf,
+            device: self.device.retained(),
             size: self.size,
             byte_size: self.byte_size,
-            device_arc: self.device_arc.clone(),
         }
     }
 }

@@ -22,6 +22,7 @@ cargo run -p xtask -- build-examples
 cargo run -p xtask -- build-test
 cargo run -p xtask -- generate-sys-bindings
 cargo run -p xtask -- download-oidn-package
+cargo run -p xtask -- check-coverage
 ```
 
 `build-test` uses `OIDN_DIR` when it is set. Otherwise it looks for an
@@ -35,7 +36,7 @@ a usable `libclang` installation to be available.
 
 When bumping the Open Image Denoise version, update the crate version,
 `.github/workflows/main.yml`'s `OIDN_VERSION`, and the bundled package
-SHA-256 values in `helpers/shared.rs`. The bundled CI job verifies the host archive
+SHA-256 values in `oidn_hashes`. The bundled CI job verifies the host archive
 against the pinned checksum.
 
 ## Bundled OIDN binaries
@@ -76,17 +77,14 @@ fn main() {
     let input_img: Vec<f32> = // A float3 RGB image produced by your renderer
     let mut filter_output = vec![0.0f32; input_img.len()];
 
-    let device = oidn::Device::new();
-    oidn::RayTracing::new(&device)
+    let device = oidn::Device::new().expect("failed to create an OIDN device");
+    oidn::RayTracing::try_new(&device)
+        .expect("Failed to create the filter")
         // Optionally add float3 normal and albedo buffers as well
         .srgb(true)
-        .image_dimensions(input.width() as usize, input.height() as usize);
+        .image_dimensions(input.width() as usize, input.height() as usize)
         .filter(&input_img[..], &mut filter_output[..])
         .expect("Filter config error!");
-
-    if let Err(e) = device.get_error() {
-        println!("Error denoising image: {}", e.1);
-    }
 
     // Save out or display filter_output image
 }
@@ -97,3 +95,43 @@ output image to a JPG. The [denoise_exr](examples/denoise_exr.rs) example loads 
 HDR color EXR file, denoises it and saves the tonemapped result out to a JPG.
 The `denoise_exr` app can also take albedo and normal data through additional
 EXR files.
+
+## Graphics API interop
+
+Buffers and semaphores can be imported from a graphics API, so that rendering
+and denoising share the same memory instead of copying it through the host:
+
+- `Device::create_shared_buffer_from_raw_fd` / `create_shared_buffer_from_raw_handle`
+  import memory exported by the other API, and `Device::external_memory_types`
+  reports the handle types the device accepts.
+- `Device::create_shared_semaphore_from_raw_fd` / `create_shared_semaphore_from_raw_handle`
+  import a semaphore or fence to synchronize access to that memory, with
+  `Device::signal_semaphores_async` and `Device::wait_semaphores_async`, and
+  `Device::external_semaphore_types` reports the handle types the device
+  accepts.
+- `Device::by_luid` and `Device::by_uuid` place the denoising device on the
+  same physical device as the graphics API, which importing requires.
+
+Open Image Denoise 2.5.0 supports importing external semaphores only on CUDA
+(Windows and Linux) and HIP (Windows) devices, so both queries return empty on
+CPU devices and an application always needs a fallback that copies through the
+host and synchronizes with `Device::sync`.
+
+Round trips through a real graphics API exercise this, in the
+`oidn-interop-tests` workspace member so that the crates driving those APIs
+stay out of this crate's dependencies on every platform:
+
+```
+cargo test -p oidn-interop-tests -- --nocapture
+```
+
+On Windows there are two Direct3D 12 round trips, one in a single process and
+one across two, where the child opens the shared objects by Win32 object name.
+On Unix there is a Vulkan round trip sharing memory and a timeline semaphore as
+POSIX file descriptors. Each skips itself, saying why, unless the machine has a
+GPU that can import the handles - a CUDA or HIP device, and a graphics driver on
+the same physical device.
+
+Note that the importing process must outlive the exporting device's use of the
+shared resources. Tearing it down first removes that device, after which its
+fences report `u64::MAX` and queued work is silently dropped.

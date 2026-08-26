@@ -1,5 +1,5 @@
-use crate::{Error, Quality, buffer::Buffer, device::Device, sys::*};
-use std::{cell::Cell, mem};
+use crate::{Error, ErrorKind, Quality, buffer::Buffer, device::Device, sys::*};
+use std::cell::Cell;
 
 /// A generic ray tracing denoising filter for denoising
 /// images produces with Monte Carlo ray tracing methods
@@ -21,12 +21,30 @@ pub struct RayTracing<'a> {
 }
 
 impl<'a> RayTracing<'a> {
+    #[deprecated(since = "2.5.0", note = "use RayTracing::try_new instead")]
     pub fn new(device: &'a Device) -> RayTracing<'a> {
+        Self::try_new(device).expect("failed to create OIDN RT filter")
+    }
+
+    /// Creates an `RT` filter on `device`.
+    pub fn try_new(device: &'a Device) -> Result<RayTracing<'a>, Error> {
         unsafe {
             oidnRetainDevice(device.0);
         }
+
+        device.clear_error();
+
         let filter = unsafe { oidnNewFilter(device.0, b"RT\0" as *const _ as _) };
-        RayTracing {
+
+        if filter.is_null() {
+            unsafe {
+                oidnReleaseDevice(device.0);
+            }
+
+            return Err(device.take_error(ErrorKind::Unknown, "oidnNewFilter"));
+        }
+
+        Ok(RayTracing {
             handle: filter,
             device,
             albedo: None,
@@ -39,7 +57,7 @@ impl<'a> RayTracing<'a> {
             weights_set: Cell::new(false),
             img_dims: (0, 0, 0),
             filter_quality: 0,
-        }
+        })
     }
 
     /// Sets the quality of the output, the default is high.
@@ -65,20 +83,28 @@ impl<'a> RayTracing<'a> {
     pub fn albedo_normal(&mut self, albedo: &[f32], normal: &[f32]) -> &mut RayTracing<'a> {
         match self.albedo.as_mut().filter(|buf| buf.size == albedo.len()) {
             None => {
-                self.albedo = Some(self.device.create_buffer(albedo).unwrap());
+                self.albedo = Some(
+                    self.device
+                        .create_buffer(albedo)
+                        .expect("failed to allocate the albedo buffer"),
+                );
             }
             Some(buf) => {
                 buf.write(albedo)
-                    .expect("we check if the size is the same already");
+                    .expect("failed to write the albedo buffer");
             }
         }
         match self.normal.as_mut().filter(|buf| buf.size == normal.len()) {
             None => {
-                self.normal = Some(self.device.create_buffer(normal).unwrap());
+                self.normal = Some(
+                    self.device
+                        .create_buffer(normal)
+                        .expect("failed to allocate the normal buffer"),
+                );
             }
             Some(buf) => {
                 buf.write(normal)
-                    .expect("we check if the size is the same already");
+                    .expect("failed to write the normal buffer");
             }
         }
         self
@@ -92,11 +118,15 @@ impl<'a> RayTracing<'a> {
     pub fn albedo(&mut self, albedo: &[f32]) -> &mut RayTracing<'a> {
         match self.albedo.as_mut().filter(|buf| buf.size == albedo.len()) {
             None => {
-                self.albedo = Some(self.device.create_buffer(albedo).unwrap());
+                self.albedo = Some(
+                    self.device
+                        .create_buffer(albedo)
+                        .expect("failed to allocate the albedo buffer"),
+                );
             }
             Some(buf) => {
                 buf.write(albedo)
-                    .expect("we check if the size is the same already");
+                    .expect("failed to write the albedo buffer");
             }
         }
         self
@@ -111,20 +141,32 @@ impl<'a> RayTracing<'a> {
     /// This function is the same as [RayTracing::albedo_normal] but takes
     /// buffers instead
     ///
-    /// Returns [None] if either buffer was not created by this device
+    /// Fails if either buffer was not created by this device.
     pub fn albedo_normal_buffer(
         &mut self,
         albedo: impl Into<Buffer>,
         normal: impl Into<Buffer>,
-    ) -> Option<&mut RayTracing<'a>> {
+    ) -> Result<&mut RayTracing<'a>, Error> {
         let albedo = albedo.into();
         let normal = normal.into();
-        if !self.device.same_device_as_buf(&albedo) || !self.device.same_device_as_buf(&normal) {
-            return None;
+
+        if !self.device.same_device_as_buf(&albedo) {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "albedo buffer was not created by this device",
+            ));
         }
+
+        if !self.device.same_device_as_buf(&normal) {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "normal buffer was not created by this device",
+            ));
+        }
+
         self.albedo = Some(albedo);
         self.normal = Some(normal);
-        Some(self)
+        Ok(self)
     }
 
     /// Set an input auxiliary buffer containing the albedo per pixel (three
@@ -133,14 +175,22 @@ impl<'a> RayTracing<'a> {
     /// This function is the same as [RayTracing::albedo] but takes buffers
     /// instead
     ///
-    /// Returns [None] if albedo buffer was not created by this device
-    pub fn albedo_buffer(&mut self, albedo: impl Into<Buffer>) -> Option<&mut RayTracing<'a>> {
+    /// Fails if the buffer was not created by this device.
+    pub fn albedo_buffer(
+        &mut self,
+        albedo: impl Into<Buffer>,
+    ) -> Result<&mut RayTracing<'a>, Error> {
         let albedo = albedo.into();
+
         if !self.device.same_device_as_buf(&albedo) {
-            return None;
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "albedo buffer was not created by this device",
+            ));
         }
+
         self.albedo = Some(albedo);
-        Some(self)
+        Ok(self)
     }
 
     /// Set whether the color is HDR.
@@ -223,8 +273,10 @@ impl<'a> RayTracing<'a> {
         buffer.as_ref().is_some_and(|b| b.size != expected)
     }
 
-    /// sets the dimensions of the denoising image, if new width * new height
-    /// does not equal old width * old height
+    /// Sets the dimensions of the image to denoise.
+    ///
+    /// Any albedo or normal image already set is discarded if it no longer
+    /// holds three channels for every pixel of the new dimensions.
     pub fn image_dimensions(&mut self, width: usize, height: usize) -> &mut RayTracing<'a> {
         let buffer_dims = 3 * width * height;
 
@@ -304,21 +356,11 @@ impl<'a> RayTracing<'a> {
     fn execute_filter(&self, color: Option<&[f32]>, output: &mut [f32]) -> Result<(), Error> {
         let color = match color {
             None => None,
-            Some(color) => Some(self.device.create_buffer(color).ok_or(Error::OutOfMemory)?),
+            Some(color) => Some(self.device.create_buffer(color)?),
         };
-        let out = self
-            .device
-            .create_buffer(output)
-            .ok_or(Error::OutOfMemory)?;
+        let out = self.device.create_buffer(output)?;
         self.execute_filter_buffer(color.as_ref(), &out)?;
-        unsafe {
-            oidnReadBuffer(
-                out.buf,
-                0,
-                out.size * mem::size_of::<f32>(),
-                output.as_mut_ptr() as *mut _,
-            )
-        };
+        out.read_to_slice(output)?;
         Ok(())
     }
 
@@ -327,6 +369,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnExecuteFilter(self.handle);
         }
+        self.device.get_error()?;
         Ok(())
     }
 
@@ -339,6 +382,7 @@ impl<'a> RayTracing<'a> {
         unsafe {
             oidnExecuteFilterAsync(self.handle);
         }
+        self.device.get_error()?;
         Ok(PendingFilter {
             filter: self,
             _color: color,
@@ -352,9 +396,14 @@ impl<'a> RayTracing<'a> {
         color: Option<&Buffer>,
         output: &Buffer,
     ) -> Result<(), Error> {
+        self.device.clear_error();
+
         if let Some(alb) = &self.albedo {
             if alb.size != self.img_dims.2 {
-                return Err(Error::InvalidImageDimensions);
+                return Err(Error::new(
+                    ErrorKind::InvalidImageDimensions,
+                    "albedo buffer size does not match the image dimensions",
+                ));
             }
             unsafe {
                 oidnSetFilterImage(
@@ -374,7 +423,10 @@ impl<'a> RayTracing<'a> {
             // not also given.
             if let Some(norm) = &self.normal {
                 if norm.size != self.img_dims.2 {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(Error::new(
+                        ErrorKind::InvalidImageDimensions,
+                        "normal buffer size does not match the image dimensions",
+                    ));
                 }
                 unsafe {
                     oidnSetFilterImage(
@@ -394,19 +446,31 @@ impl<'a> RayTracing<'a> {
         let color_buffer = match color {
             Some(color) => {
                 if !self.device.same_device_as_buf(color) {
-                    return Err(Error::InvalidArgument);
+                    return Err(Error::new(
+                        ErrorKind::InvalidArgument,
+                        "color buffer was not created by this device",
+                    ));
                 }
                 if color.size != self.img_dims.2 {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(Error::new(
+                        ErrorKind::InvalidImageDimensions,
+                        "color buffer size does not match the image dimensions",
+                    ));
                 }
                 color
             }
             None => {
                 if !self.device.same_device_as_buf(output) {
-                    return Err(Error::InvalidArgument);
+                    return Err(Error::new(
+                        ErrorKind::InvalidArgument,
+                        "output buffer was not created by this device",
+                    ));
                 }
                 if output.size != self.img_dims.2 {
-                    return Err(Error::InvalidImageDimensions);
+                    return Err(Error::new(
+                        ErrorKind::InvalidImageDimensions,
+                        "output buffer size does not match the image dimensions",
+                    ));
                 }
                 // actually this is a needed borrow, the compiler complains otherwise
                 #[allow(clippy::needless_borrow)]
@@ -427,10 +491,16 @@ impl<'a> RayTracing<'a> {
             );
         }
         if !self.device.same_device_as_buf(output) {
-            return Err(Error::InvalidArgument);
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "output buffer was not created by this device",
+            ));
         }
         if output.size != self.img_dims.2 {
-            return Err(Error::InvalidImageDimensions);
+            return Err(Error::new(
+                ErrorKind::InvalidImageDimensions,
+                "output buffer size does not match the image dimensions",
+            ));
         }
         unsafe {
             oidnSetFilterImage(
@@ -470,6 +540,9 @@ impl<'a> RayTracing<'a> {
 
             oidnCommitFilter(self.handle);
         }
+
+        self.device.get_error()?;
+
         Ok(())
     }
 }
@@ -514,5 +587,33 @@ impl PendingFilter<'_, '_> {
 impl Drop for PendingFilter<'_, '_> {
     fn drop(&mut self) {
         self.finish();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn weights_replaces_and_clears_existing_shared_weights() {
+        let device = Device::cpu().unwrap();
+        let mut filter = RayTracing::try_new(&device).unwrap();
+
+        // Simulate the state after configure_filter_buffer has installed
+        // weights, so the `weights_set == true` branches are covered without
+        // needing valid OIDN model weights or a denoise operation.
+        filter.weights_set.set(true);
+
+        filter.weights(&[1, 2, 3, 4]);
+        assert_eq!(filter.weights.as_deref(), Some(&[1, 2, 3, 4][..]));
+        assert!(filter.weights_set.get());
+
+        filter.clear_weights();
+        assert!(filter.weights.is_none());
+        assert!(!filter.weights_set.get());
+
+        if let Err(err) = device.get_error() {
+            panic!("OIDN device error after weights test: {err}");
+        }
     }
 }
