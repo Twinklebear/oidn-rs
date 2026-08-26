@@ -47,7 +47,7 @@ build script download the matching official Open Image Denoise binary package
 and link against it:
 
 ```toml
-oidn = { version = "2.5.0", features = ["bundled"] }
+oidn = { version = "2.5.1", features = ["bundled"] }
 ```
 
 The bundled feature supports the official OIDN packages for x86_64 Linux,
@@ -112,7 +112,7 @@ and denoising share the same memory instead of copying it through the host:
 - `Device::by_luid` and `Device::by_uuid` place the denoising device on the
   same physical device as the graphics API, which importing requires.
 
-Open Image Denoise 2.5.0 supports importing external semaphores only on CUDA
+Open Image Denoise 2.5.1 supports importing external semaphores only on CUDA
 (Windows and Linux) and HIP (Windows) devices, so both queries return empty on
 CPU devices and an application always needs a fallback that copies through the
 host and synchronizes with `Device::sync`.
