@@ -11,7 +11,8 @@ fn main() {
         .expect("Failed to open input image")
         .to_rgb8();
 
-    // OIDN works on float images only, so convert this to a floating point image
+    // OIDN works on float images only, so convert this to a floating point
+    // image
     let mut input_img = vec![0.0f32; (3 * input.width() * input.height()) as usize];
     for y in 0..input.height() {
         for x in 0..input.width() {

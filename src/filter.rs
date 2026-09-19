@@ -472,7 +472,8 @@ impl<'a> RayTracing<'a> {
                         "output buffer size does not match the image dimensions",
                     ));
                 }
-                // actually this is a needed borrow, the compiler complains otherwise
+                // actually this is a needed borrow, the compiler complains
+                // otherwise
                 #[allow(clippy::needless_borrow)]
                 &output
             }
