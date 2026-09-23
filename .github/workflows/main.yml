@@ -2,11 +2,11 @@ name: CI
 on:
     push:
     pull_request:
+    workflow_dispatch:
     schedule:
         - cron: "0 0 * * 1"
 env:
     CARGO_TERM_COLOR: always
-    OIDN_VERSION: 2.5.1
 jobs:
     build_linux:
         runs-on: ubuntu-latest
@@ -21,6 +21,10 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
                 components: rustfmt, clippy
+            - name: Read OIDN version
+              # The crate version is the Open Image Denoise version it wraps.
+              shell: bash
+              run: echo "OIDN_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
             - name: Cache OIDN download (Linux)
               id: cache-oidn
               uses: actions/cache@v4
@@ -68,6 +72,10 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
                 components: rustfmt, clippy
+            - name: Read OIDN version
+              # The crate version is the Open Image Denoise version it wraps.
+              shell: bash
+              run: echo "OIDN_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
             - name: Cache OIDN download (macOS)
               id: cache-oidn
               uses: actions/cache@v4
@@ -113,6 +121,10 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 override: true
                 components: rustfmt, clippy
+            - name: Read OIDN version
+              # The crate version is the Open Image Denoise version it wraps.
+              shell: bash
+              run: echo "OIDN_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
             - name: Cache OIDN download (Windows)
               id: cache-oidn
               uses: actions/cache@v4
