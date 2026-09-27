@@ -796,6 +796,67 @@ fn semaphore_signal_and_wait_reject_empty_lists() {
     assert_device_ok(&device);
 }
 
+/// A semaphore that was never imported, for exercising the checks that run
+/// before a signal or wait reaches Open Image Denoise. CPU devices cannot
+/// import real ones. The handle is dangling, so the semaphore must never be
+/// dropped.
+fn unimported_semaphore(device: &crate::Device) -> mem::ManuallyDrop<crate::Semaphore> {
+    mem::ManuallyDrop::new(crate::Semaphore {
+        semaphore: std::ptr::NonNull::dangling().as_ptr(),
+        device: device.retained(),
+        semaphore_type: crate::ExternalSemaphoreTypeFlags::D3D12_FENCE,
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn semaphore_signal_and_wait_reject_foreign_device_semaphores() {
+    let device = crate::Device::cpu().unwrap();
+    let foreign_device = crate::Device::cpu().unwrap();
+    let semaphore = unimported_semaphore(&foreign_device);
+
+    let foreign = Error::new(
+        ErrorKind::InvalidArgument,
+        "semaphore was not created by this device",
+    );
+
+    assert_eq!(
+        unsafe { device.signal_semaphores_async(&[&semaphore], Some(&[1])) },
+        Err(foreign.clone())
+    );
+    assert_eq!(
+        unsafe { device.wait_semaphores_async(&[&semaphore], Some(&[1]), Some(&[1000])) },
+        Err(foreign)
+    );
+
+    assert_device_ok(&device);
+    assert_device_ok(&foreign_device);
+}
+
+#[cfg(test)]
+#[test]
+fn semaphore_signal_and_wait_reject_mismatched_lengths() {
+    let device = crate::Device::cpu().unwrap();
+    let semaphore = unimported_semaphore(&device);
+
+    assert_eq!(
+        unsafe { device.signal_semaphores_async(&[&semaphore], Some(&[1, 2])) },
+        Err(Error::new(
+            ErrorKind::InvalidArgument,
+            "semaphore values length does not match semaphore count",
+        ))
+    );
+    assert_eq!(
+        unsafe { device.wait_semaphores_async(&[&semaphore], Some(&[1]), Some(&[1000, 2000])) },
+        Err(Error::new(
+            ErrorKind::InvalidArgument,
+            "semaphore timeout length does not match semaphore count",
+        ))
+    );
+
+    assert_device_ok(&device);
+}
+
 #[cfg(all(test, unix))]
 #[test]
 fn invalid_external_semaphore_fd_returns_error() {
