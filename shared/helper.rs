@@ -125,6 +125,11 @@ fn verify_sha256(
     path: &std::path::Path,
     expected_hex: &str,
 ) -> std::result::Result<bool, Box<dyn std::error::Error>> {
+    Ok(sha256_hex(path)? == expected_hex)
+}
+
+#[cfg(feature = "bundled")]
+fn sha256_hex(path: &std::path::Path) -> std::result::Result<String, Box<dyn std::error::Error>> {
     let mut file = std::fs::File::open(path)?;
     let mut hasher = <sha2::Sha256 as sha2::Digest>::new();
     let mut buffer = [0u8; 8192];
@@ -135,11 +140,10 @@ fn verify_sha256(
         }
         sha2::Digest::update(&mut hasher, &buffer[..count]);
     }
-    let actual_hex = sha2::Digest::finalize(hasher)
+    Ok(sha2::Digest::finalize(hasher)
         .iter()
         .map(|b| format!("{:02x}", b))
-        .collect::<String>();
-    Ok(actual_hex == expected_hex)
+        .collect::<String>())
 }
 
 #[cfg(feature = "bundled")]

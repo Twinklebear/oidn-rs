@@ -23,6 +23,7 @@ cargo run -p xtask -- build-test
 cargo run -p xtask -- generate-sys-bindings
 cargo run -p xtask -- download-oidn-package
 cargo run -p xtask -- check-coverage
+cargo run -p xtask -- update-oidn <version>
 ```
 
 `build-test` uses `OIDN_DIR` when it is set. Otherwise it looks for an
@@ -34,10 +35,17 @@ bundled package under `target`. Explicit header and output paths can also be
 passed to `generate-sys-bindings`. The binding generator expects `bindgen` and
 a usable `libclang` installation to be available.
 
-When bumping the Open Image Denoise version, update the crate version,
-`.github/workflows/main.yml`'s `OIDN_VERSION`, and the bundled package
-SHA-256 values in `oidn_hashes`. The bundled CI job verifies the host archive
-against the pinned checksum.
+`update-oidn` moves the crate to a new Open Image Denoise release. It
+downloads the official packages, writes their SHA-256 values to `oidn_hashes`,
+bumps the crate version and the version in this README, and regenerates
+`src/sys.rs` from the release's `oidn.h`. The committed bindings are generated
+on Windows, since bindgen on other hosts may emit different integer types for
+enums. CI reads the version from `Cargo.toml`, and the bundled CI job verifies
+the host archive against the pinned checksum.
+
+Every three days, the `Open Image Denoise release` workflow checks for a new
+release. When it finds one, it runs `update-oidn` and the tests, pushes an
+`oidn-<version>` branch, and opens an issue and a pull request for it.
 
 ## Bundled OIDN binaries
 

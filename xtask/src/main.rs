@@ -23,6 +23,12 @@ Usage:
   cargo run -p xtask -- generate-sys-bindings [oidn.h] [src/sys.rs]
   cargo run -p xtask -- download-oidn-package
   cargo run -p xtask -- check-coverage
+  cargo run -p xtask -- update-oidn <version>
+
+update-oidn downloads the official packages of an Open Image Denoise release,
+records their hashes, bumps the version, and regenerates src/sys.rs from the
+release's oidn.h. The committed bindings are generated on Windows; other
+hosts may emit different integer types for enums.
 
 Aliases:
   build-examples-linux-mac -> build-examples
@@ -60,6 +66,7 @@ fn run() -> DynResult<()> {
         "generate-sys-bindings" => generate_sys_bindings(&root, &args)?,
         "download-oidn-package" | "download-oidn" => download_oidn_package(&root, &args)?,
         "check-coverage" => check_coverage(&root, &args)?,
+        "update-oidn" => update_oidn(&root, &args)?,
         other => return Err(format!("unknown xtask command `{other}`\n\n{HELP}").into()),
     }
 
@@ -152,6 +159,108 @@ fn generate_sys_bindings(root: &Path, args: &[OsString]) -> DynResult<()> {
 fn download_oidn_package(root: &Path, _args: &[OsString]) -> DynResult<()> {
     let package_dir = download_and_extract_oidn(root)?;
     println!("OIDN package available at {}", package_dir.display());
+    Ok(())
+}
+
+/// The official binary packages the `bundled` feature downloads, as package
+/// suffix and archive extension. Each has its hash in
+/// `oidn_hashes/<package suffix>.sha256`.
+const OIDN_PACKAGES: &[(&str, &str)] = &[
+    ("x86_64.linux", "tar.gz"),
+    ("x86_64.macos", "tar.gz"),
+    ("arm64.macos", "tar.gz"),
+    ("x64.windows", "zip"),
+];
+
+fn update_oidn(root: &Path, args: &[OsString]) -> DynResult<()> {
+    let [version] = args else {
+        return Err("usage: cargo run -p xtask -- update-oidn <version>".into());
+    };
+    let version = version.to_str().ok_or("version must be valid UTF-8")?;
+    let is_version = version.split('.').count() == 3
+        && version
+            .split('.')
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()));
+    if !is_version {
+        return Err(format!("`{version}` is not a version like 2.5.1").into());
+    }
+
+    let old_version =
+        package_version(root).ok_or("could not read the package version from Cargo.toml")?;
+    if old_version == version {
+        println!("Already at Open Image Denoise {version}");
+        return Ok(());
+    }
+
+    // Download everything before changing any file, so a release that is
+    // missing a package leaves the tree untouched.
+    let mut hashes = Vec::new();
+    for (package, extension) in OIDN_PACKAGES {
+        let archive_name = format!("oidn-{version}.{package}.{extension}");
+        let archive_path = root.join(&archive_name);
+        download_archive(
+            &archive_path,
+            &format!(
+                "https://github.com/OpenImageDenoise/oidn/releases/download/v{version}/{archive_name}"
+            ),
+        )?;
+        let hash = sha256_hex(&archive_path)?;
+        println!("{archive_name}: {hash}");
+        hashes.push((package, hash));
+    }
+
+    for (package, hash) in hashes {
+        fs::write(
+            root.join("oidn_hashes").join(format!("{package}.sha256")),
+            hash,
+        )?;
+    }
+
+    replace_in_file(
+        &root.join("Cargo.toml"),
+        &format!("version = \"{old_version}\""),
+        &format!("version = \"{version}\""),
+        Some(1),
+    )?;
+    replace_in_file(&root.join("README.md"), &old_version, version, None)?;
+
+    let host_package = platform_package_suffixes()[0];
+    let package_dir = root.join(format!("oidn-{version}.{host_package}"));
+    if !package_dir.is_dir() {
+        let (_, extension) = OIDN_PACKAGES
+            .iter()
+            .find(|(package, _)| *package == host_package)
+            .ok_or("no official package for this host")?;
+        extract_archive(
+            root,
+            &root.join(format!("oidn-{version}.{host_package}.{extension}")),
+        )?;
+    }
+    generate_bindings(
+        &package_dir
+            .join("include")
+            .join("OpenImageDenoise")
+            .join("oidn.h"),
+        &root.join("src").join("sys.rs"),
+    )?;
+
+    println!("Updated Open Image Denoise from {old_version} to {version}");
+    Ok(())
+}
+
+/// Replaces `from` with `to` in a file, at most `limit` times, failing if
+/// `from` does not occur at all.
+fn replace_in_file(path: &Path, from: &str, to: &str, limit: Option<usize>) -> DynResult<()> {
+    let contents = fs::read_to_string(path)?;
+    if !contents.contains(from) {
+        return Err(format!("`{from}` not found in {}", path.display()).into());
+    }
+
+    let contents = match limit {
+        Some(limit) => contents.replacen(from, to, limit),
+        None => contents.replace(from, to),
+    };
+    fs::write(path, contents)?;
     Ok(())
 }
 

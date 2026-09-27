@@ -1,0 +1,167 @@
+name: Open Image Denoise release
+on:
+    schedule:
+        - cron: "0 6 */3 * *"
+    workflow_dispatch:
+permissions:
+    contents: read
+concurrency:
+    group: oidn-release
+env:
+    CARGO_TERM_COLOR: always
+jobs:
+    check:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            issues: read
+        outputs:
+            version: ${{ steps.check.outputs.version }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - name: Compare with the latest release
+              id: check
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                latest=$(gh api repos/OpenImageDenoise/oidn/releases/latest --jq .tag_name)
+                latest=${latest#v}
+                current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+                echo "Latest release $latest, crate at $current"
+
+                newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n 1)
+                if [ "$latest" = "$current" ] || [ "$newest" != "$latest" ]; then
+                  echo "Up to date"
+                  exit 0
+                fi
+
+                # Handle each release once: skip it if its branch or issue
+                # already exists, even if someone closed or deleted it since.
+                if git ls-remote --exit-code --heads origin "oidn-$latest" > /dev/null; then
+                  echo "Branch oidn-$latest already exists"
+                  exit 0
+                fi
+                title="Open Image Denoise $latest released"
+                existing=$(gh issue list --state all --search "\"$title\" in:title" --json title \
+                  --jq "map(select(.title == \"$title\")) | length")
+                if [ "$existing" != "0" ]; then
+                  echo "An issue for $latest already exists"
+                  exit 0
+                fi
+
+                echo "version=$latest" >> "$GITHUB_OUTPUT"
+
+    update:
+        needs: check
+        if: needs.check.outputs.version != ''
+        # The committed bindings are generated on Windows; bindgen on other
+        # hosts may emit different integer types for enums.
+        runs-on: windows-latest
+        permissions:
+            actions: write
+            contents: write
+            issues: write
+            pull-requests: write
+        env:
+            VERSION: ${{ needs.check.outputs.version }}
+            BRANCH: oidn-${{ needs.check.outputs.version }}
+            GH_TOKEN: ${{ github.token }}
+        defaults:
+            run:
+                shell: bash
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - name: Set up Rust toolchain
+              uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+              with:
+                toolchain: stable
+            - name: Update to the new release
+              run: cargo run -p xtask -- update-oidn "$VERSION"
+            - name: Check hashes against the digests GitHub reports
+              run: |
+                for file in oidn_hashes/*.sha256; do
+                  package=$(basename "$file" .sha256)
+                  digest=$(gh api "repos/OpenImageDenoise/oidn/releases/tags/v$VERSION" \
+                    --jq ".assets[] | select(.name | startswith(\"oidn-$VERSION.$package.\")) | .digest // empty")
+                  if [ -z "$digest" ]; then
+                    echo "No digest reported for $package"
+                  elif [ "$digest" != "sha256:$(cat "$file")" ]; then
+                    echo "::error::$package hashes to $(cat "$file"), but GitHub reports $digest"
+                    exit 1
+                  fi
+                done
+            - name: Test against the new release
+              id: test
+              continue-on-error: true
+              run: |
+                export OIDN_DIR="$PWD/oidn-$VERSION.x64.windows"
+                export PATH="$OIDN_DIR/bin:$PATH"
+                cargo test -p oidn --all-targets
+            - name: Push the update branch
+              run: |
+                git config user.name "github-actions[bot]"
+                git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                git switch -c "$BRANCH"
+                git add Cargo.toml README.md oidn_hashes src/sys.rs
+                git commit -m "Update Open Image Denoise to $VERSION"
+                git push origin "$BRANCH"
+            - name: Open an issue and a pull request
+              env:
+                  TEST_OUTCOME: ${{ steps.test.outcome }}
+              run: |
+                release_url="https://github.com/OpenImageDenoise/oidn/releases/tag/v$VERSION"
+                notes=$(gh api "repos/OpenImageDenoise/oidn/releases/tags/v$VERSION" --jq .body)
+                if git diff --quiet HEAD~1 -- src/sys.rs; then
+                  bindings="The generated bindings in \`src/sys.rs\` are unchanged, so \`oidn.h\` has no API change."
+                else
+                  bindings="**The generated bindings in \`src/sys.rs\` changed**, so the API changed. New functions or types need safe wrappers."
+                fi
+                if [ "$TEST_OUTCOME" = "success" ]; then
+                  tests="\`cargo test -p oidn --all-targets\` passed against the new release on Windows."
+                else
+                  tests="**\`cargo test -p oidn --all-targets\` failed against the new release on Windows.** See the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+                fi
+
+                {
+                  echo "Open Image Denoise [$VERSION]($release_url) is out."
+                  echo
+                  echo "The branch [\`$BRANCH\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$BRANCH) updates the crate version, the README, the package hashes and the bindings."
+                  echo
+                  echo "- $bindings"
+                  echo "- $tests"
+                  echo
+                  echo "Before merging:"
+                  echo "- [ ] Read the release notes for behavior changes the wrappers should reflect"
+                  echo "- [ ] Check that the README's statements about this release still hold"
+                  echo "- [ ] Publish the new version once it is merged"
+                  echo
+                  echo "<details><summary>Release notes</summary>"
+                  echo
+                  # Issue bodies are limited to 65536 characters.
+                  echo "${notes:0:40000}"
+                  echo
+                  echo "</details>"
+                } > issue.md
+                issue_url=$(gh issue create --title "Open Image Denoise $VERSION released" --body-file issue.md)
+                echo "Opened $issue_url"
+
+                {
+                  echo "Updates Open Image Denoise to [$VERSION]($release_url)."
+                  echo
+                  echo "- $bindings"
+                  echo "- $tests"
+                  echo
+                  echo "Closes #${issue_url##*/}"
+                } > pr.md
+                if pr_url=$(gh pr create --base "$GITHUB_REF_NAME" --head "$BRANCH" \
+                    --title "Update Open Image Denoise to $VERSION" --body-file pr.md); then
+                  echo "Opened $pr_url"
+                else
+                  # Creating pull requests needs "Allow GitHub Actions to create
+                  # and approve pull requests" in the repository settings.
+                  gh issue comment "$issue_url" --body "Could not open a pull request automatically. [Open one from \`$BRANCH\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$GITHUB_REF_NAME...$BRANCH?expand=1)."
+                fi
+
+                # Pushes made with GITHUB_TOKEN do not trigger workflows, so
+                # start CI on the branch explicitly.
+                gh workflow run main.yml --ref "$BRANCH"
