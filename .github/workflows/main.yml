@@ -58,6 +58,11 @@ jobs:
                   RUSTDOCFLAGS: -Dwarnings
             - name: Format Core
               run: cargo fmt -- --check
+            - name: Check bindings are up to date (Linux)
+              if: matrix.rust_channel == 'stable'
+              run: |
+                cargo run -p xtask -- generate-sys-bindings "oidn-${OIDN_VERSION}.x86_64.linux/include/OpenImageDenoise/oidn.h"
+                git diff --exit-code src/sys.rs
     build_mac:
         runs-on: macos-latest
         strategy:

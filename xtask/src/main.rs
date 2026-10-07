@@ -27,8 +27,8 @@ Usage:
 
 update-oidn downloads the official packages of an Open Image Denoise release,
 records their hashes, bumps the version, and regenerates src/sys.rs from the
-release's oidn.h. The committed bindings are generated on Windows; other
-hosts may emit different integer types for enums.
+release's oidn.h. Bindings are generated for the x86_64-pc-windows-msvc target
+on every host, so they come out the same everywhere; this needs clang.
 
 Aliases:
   build-examples-linux-mac -> build-examples
@@ -417,6 +417,34 @@ fn detect_libclang_dir() -> Option<PathBuf> {
         .find(|dir| contains_libclang(dir))
 }
 
+fn clang_resource_dir() -> DynResult<PathBuf> {
+    let clang = if cfg!(windows) { "clang.exe" } else { "clang" };
+    let candidates = env::var_os("LIBCLANG_PATH")
+        .map(PathBuf::from)
+        .into_iter()
+        .chain(llvm_env_dirs())
+        .chain(default_llvm_dirs())
+        .map(|dir| dir.join(clang))
+        .filter(|path| path.is_file())
+        .chain(std::iter::once(PathBuf::from(clang)));
+
+    for candidate in candidates {
+        let Ok(output) = ProcessCommand::new(&candidate)
+            .arg("-print-resource-dir")
+            .output()
+        else {
+            continue;
+        };
+        let dir = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+        if output.status.success() && dir.join("include").join("stddef.h").is_file() {
+            println!("Using clang builtin headers from {}", dir.display());
+            return Ok(dir);
+        }
+    }
+
+    Err("could not find clang's builtin headers; install clang or set LLVM_HOME".into())
+}
+
 fn llvm_env_dirs() -> Vec<PathBuf> {
     ["LLVM_HOME", "LLVM_DIR"]
         .into_iter()
@@ -520,8 +548,20 @@ fn generate_bindings(header: &Path, output: &Path) -> DynResult<()> {
         }
     }
 
+    let builtin_include = clang_resource_dir()?.join("include");
+
     let bindings = bindgen::Builder::default()
         .header(header.to_string_lossy())
+        // Plain C enums are `int` on MSVC but `unsigned int` elsewhere; pin the
+        // target so the committed bindings are identical on every host.
+        .clang_arg("--target=x86_64-pc-windows-msvc")
+        // The host's system headers do not match the pinned target, and
+        // libclang does not find its own builtin headers on its own, so only
+        // search clang's freestanding `stddef.h`, `stdint.h` and `stdbool.h`.
+        .clang_arg("-nostdinc")
+        .clang_arg("-ffreestanding")
+        .clang_arg("-isystem")
+        .clang_arg(builtin_include.to_string_lossy())
         .clang_arg("-x")
         .clang_arg("c++")
         .clang_arg("-std=c++11")
