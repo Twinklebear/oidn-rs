@@ -180,7 +180,7 @@ fn extract_zip_archive(
             .as_deref()
             .map(std::path::Path::to_path_buf)
         else {
-            return Err(format!("zip archive contains unsafe path: {}", entry.name()).into());
+            return Err(format!("zip archive contains unsafe path: {}", entry.name()?).into());
         };
 
         let output_path = safe_archive_path(root, &enclosed_name)?;
