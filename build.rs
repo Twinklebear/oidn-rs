@@ -59,7 +59,10 @@ fn configure_bundled() -> Result<(), Box<dyn std::error::Error>> {
 
     let bundled = match find_bundled_oidn_dir(&root) {
         Some(dir) => dir,
-        None => download_and_extract_oidn(&root)?,
+        None => {
+            let out_dir = PathBuf::from(env::var_os("OUT_DIR").ok_or("OUT_DIR is not set")?);
+            download_and_extract_oidn(&root, &out_dir)?
+        }
     };
 
     let lib_path = bundled.join("lib");
@@ -75,7 +78,7 @@ fn configure_bundled() -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "cargo:rerun-if-changed={}",
         root.join("Cargo.toml").display()
-    ); //if the crate version changes download the new version of OIDN
+    ); // if the OIDN version in the metadata changes, download that release
     println!("cargo:rerun-if-changed={}", bundled.display());
     println!("cargo:rerun-if-changed={}", lib_path.display());
     println!("cargo:rerun-if-changed={}", runtime_path.display());

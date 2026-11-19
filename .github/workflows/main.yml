@@ -25,9 +25,9 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 components: rustfmt, clippy
             - name: Read OIDN version
-              # The crate version is the Open Image Denoise version it wraps.
+              # The Open Image Denoise release the crate wraps, from [package.metadata.oidn].
               shell: bash
-              run: echo "OIDN_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
+              run: echo "OIDN_VERSION=$(sed -n '/^\[package\.metadata\.oidn\]/,/^\[/ s/^version = "\([^"]*\)".*/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
             - name: Cache OIDN download (Linux)
               id: cache-oidn
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -75,9 +75,9 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 components: rustfmt, clippy
             - name: Read OIDN version
-              # The crate version is the Open Image Denoise version it wraps.
+              # The Open Image Denoise release the crate wraps, from [package.metadata.oidn].
               shell: bash
-              run: echo "OIDN_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
+              run: echo "OIDN_VERSION=$(sed -n '/^\[package\.metadata\.oidn\]/,/^\[/ s/^version = "\([^"]*\)".*/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
             - name: Cache OIDN download (macOS)
               id: cache-oidn
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -123,9 +123,9 @@ jobs:
                 toolchain: ${{ matrix.rust_channel }}
                 components: rustfmt, clippy
             - name: Read OIDN version
-              # The crate version is the Open Image Denoise version it wraps.
+              # The Open Image Denoise release the crate wraps, from [package.metadata.oidn].
               shell: bash
-              run: echo "OIDN_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
+              run: echo "OIDN_VERSION=$(sed -n '/^\[package\.metadata\.oidn\]/,/^\[/ s/^version = "\([^"]*\)".*/\1/p' Cargo.toml | head -n 1)" >> "$GITHUB_ENV"
             - name: Cache OIDN download (Windows)
               id: cache-oidn
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -161,3 +161,12 @@ jobs:
               env:
                   OIDN_DIR: ""
 
+    nix:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+            - name: Check formatting with alejandra
+              run: nix fmt -- --check .
+            - name: Evaluate the flake
+              run: nix flake check --no-build --all-systems

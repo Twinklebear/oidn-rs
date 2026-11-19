@@ -17,11 +17,17 @@ include = [
     "/README.md",
     "/build.rs",
     "/shared/helper.rs",
+    "/oidn_hashes/*.sha256",
     "/src/**",
     "/tests/**",
     "/examples/*.rs",
 ]
 links = "OpenImageDenoise"
+
+# The Open Image Denoise release the `bundled` feature downloads. The crate
+# version follows it, but can move ahead of it for fixes to the crate itself.
+[package.metadata.oidn]
+version = "2.5.1"
 
 [workspace]
 members = [".", "xtask", "interop-tests"]

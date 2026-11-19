@@ -4,7 +4,10 @@
 [![CI](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml/badge.svg)](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml)
 
 Rust bindings to Intel’s [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
-Crate version numbers track the OIDN version they correspond to.
+Crate version numbers track the OIDN version they correspond to. A fix to the
+crate itself between OIDN releases bumps the patch version, so a crate version
+can be ahead of the OIDN release it wraps; `[package.metadata.oidn]` in
+`Cargo.toml` names that release.
 
 ## Documentation
 
@@ -37,10 +40,10 @@ a usable `libclang` installation to be available.
 
 `update-oidn` moves the crate to a new Open Image Denoise release. It
 downloads the official packages, writes their SHA-256 values to `oidn_hashes`,
-bumps the crate version and the version in this README, and regenerates
-`src/sys.rs` from the release's `oidn.h`. The committed bindings are generated
+sets the OIDN version in `[package.metadata.oidn]`, moves the crate version and
+this README to it, and regenerates `src/sys.rs` from the release's `oidn.h`. The committed bindings are generated
 on Windows, since bindgen on other hosts may emit different integer types for
-enums. CI reads the version from `Cargo.toml`, and the bundled CI job verifies
+enums. CI reads the OIDN version from `[package.metadata.oidn]`, and the bundled CI job verifies
 the host archive against the pinned checksum.
 
 Every three days, the `Open Image Denoise release` workflow checks for a new
@@ -60,7 +63,8 @@ oidn = { version = "2.5.1", features = ["bundled"] }
 
 The bundled feature supports the official OIDN packages for x86_64 Linux,
 x86_64 Windows, and x86_64/aarch64 macOS. Downloaded archives are verified
-against pinned SHA-256 checksums for the crate's OIDN version. Set
+against pinned SHA-256 checksums for the crate's OIDN version. The
+archive is downloaded and extracted into the build script's `OUT_DIR`. Set
 `OIDN_BUNDLED_DIR` to a pre-extracted OIDN package root if you want to provide
 the files yourself or avoid a network download during the build. The feature
 still links the dynamic OIDN libraries, so applications that redistribute

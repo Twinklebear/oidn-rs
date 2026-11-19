@@ -6,7 +6,7 @@ pub fn oidn_dir(root: &std::path::Path) -> Option<std::path::PathBuf> {
     let version = std::env::var("OIDN_VERSION")
         .ok()
         .filter(|version| !version.is_empty())
-        .or_else(|| package_version(root))?;
+        .or_else(|| oidn_version(root))?;
 
     oidn_package_dirs(root, &version)
         .into_iter()
@@ -26,20 +26,26 @@ pub fn non_empty_env_path(name: &str) -> Option<std::path::PathBuf> {
         .map(std::path::PathBuf::from)
 }
 
+/// Downloads the official package for the host into `destination` and
+/// extracts it there. `root` is the crate root, which holds `Cargo.toml`.
+/// Build scripts must pass `OUT_DIR` as `destination`, since cargo does not
+/// let them write to the crate's source directory.
 #[cfg(feature = "bundled")]
 pub fn download_and_extract_oidn(
     root: &std::path::Path,
+    destination: &std::path::Path,
 ) -> std::result::Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let version = std::env::var("OIDN_VERSION")
         .ok()
         .filter(|v| !v.is_empty())
-        .or_else(|| package_version(root))
+        .or_else(|| oidn_version(root))
         .ok_or("OIDN version could not be determined")?;
 
     let info = package_asset_info()?;
     let archive_name = format!("oidn-{version}.{}", info.archive_suffix);
-    let archive_path = root.join(&archive_name);
-    let package_dir = root.join(format!("oidn-{version}.{}", info.package_suffix));
+    std::fs::create_dir_all(destination)?;
+    let archive_path = destination.join(&archive_name);
+    let package_dir = destination.join(format!("oidn-{version}.{}", info.package_suffix));
 
     ensure_archive(
         &archive_path,
@@ -52,7 +58,7 @@ pub fn download_and_extract_oidn(
     )?;
 
     if !package_dir.is_dir() {
-        extract_archive(root, &archive_path)?;
+        extract_archive(destination, &archive_path)?;
     }
 
     Ok(package_dir)
@@ -67,7 +73,7 @@ pub fn find_bundled_oidn_dir(root: &std::path::Path) -> Option<std::path::PathBu
         return Some(dir);
     }
 
-    let version = package_version(root)?;
+    let version = oidn_version(root)?;
     let dirs = platform_package_suffixes()
         .iter()
         .map(|s| root.join(format!("oidn-{version}.{s}")));
@@ -252,20 +258,34 @@ fn safe_archive_path(
     Ok(root.join(entry_name))
 }
 
-pub fn package_version(root: &std::path::Path) -> Option<String> {
+/// The Open Image Denoise release this crate wraps, from
+/// `[package.metadata.oidn]` in `Cargo.toml`. It is kept apart from the crate
+/// version so the crate can publish fixes without a new OIDN release.
+pub fn oidn_version(root: &std::path::Path) -> Option<String> {
     let manifest = std::fs::read_to_string(root.join("Cargo.toml")).ok()?;
-    let mut in_package = false;
+    manifest_value(&manifest, "package.metadata.oidn", "version")
+}
+
+/// Reads a string value from a table of a `Cargo.toml`, written either as
+/// `[package.metadata.oidn]` with `version = "..."` or in the form cargo
+/// normalizes published manifests to.
+pub fn manifest_value(manifest: &str, table: &str, key: &str) -> Option<String> {
+    let mut in_table = false;
     for line in manifest.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('[') {
-            in_package = trimmed == "[package]";
+            in_table = trimmed == format!("[{table}]");
             continue;
         }
-        if !in_package || !trimmed.starts_with("version") {
+        if !in_table {
             continue;
         }
-        let (_, value) = trimmed.split_once('=')?;
-        return Some(value.trim().trim_matches('"').to_string());
+        let Some((name, value)) = trimmed.split_once('=') else {
+            continue;
+        };
+        if name.trim() == key {
+            return Some(value.trim().trim_matches('"').to_string());
+        }
     }
     None
 }

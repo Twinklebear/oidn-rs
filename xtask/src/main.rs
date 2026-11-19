@@ -157,7 +157,7 @@ fn generate_sys_bindings(root: &Path, args: &[OsString]) -> DynResult<()> {
 }
 
 fn download_oidn_package(root: &Path, _args: &[OsString]) -> DynResult<()> {
-    let package_dir = download_and_extract_oidn(root)?;
+    let package_dir = download_and_extract_oidn(root, root)?;
     println!("OIDN package available at {}", package_dir.display());
     Ok(())
 }
@@ -185,11 +185,20 @@ fn update_oidn(root: &Path, args: &[OsString]) -> DynResult<()> {
         return Err(format!("`{version}` is not a version like 2.5.1").into());
     }
 
-    let old_version =
-        package_version(root).ok_or("could not read the package version from Cargo.toml")?;
+    let old_version = oidn_version(root)
+        .ok_or("could not read the OIDN version from [package.metadata.oidn] in Cargo.toml")?;
     if old_version == version {
         println!("Already at Open Image Denoise {version}");
         return Ok(());
+    }
+
+    let crate_version =
+        cargo_package_version(root).ok_or("could not read the crate version from Cargo.toml")?;
+    if crate_version == version {
+        return Err(format!(
+            "the crate is already at version {version}; pick a crate version for this update by hand"
+        )
+        .into());
     }
 
     // Download everything before changing any file, so a release that is
@@ -216,13 +225,15 @@ fn update_oidn(root: &Path, args: &[OsString]) -> DynResult<()> {
         )?;
     }
 
-    replace_in_file(
-        &root.join("Cargo.toml"),
-        &format!("version = \"{old_version}\""),
-        &format!("version = \"{version}\""),
-        Some(1),
-    )?;
+    // Point the metadata at the new release and move the crate version to
+    // it, so the crate keeps tracking the OIDN release it wraps.
+    set_manifest_value(root, "package.metadata.oidn", "version", version)?;
+    set_manifest_value(root, "package", "version", version)?;
     replace_in_file(&root.join("README.md"), &old_version, version, None)?;
+    if crate_version != old_version {
+        // The dependency example in the README names the crate version.
+        replace_in_file(&root.join("README.md"), &crate_version, version, None)?;
+    }
 
     let host_package = platform_package_suffixes()[0];
     let package_dir = root.join(format!("oidn-{version}.{host_package}"));
@@ -245,6 +256,44 @@ fn update_oidn(root: &Path, args: &[OsString]) -> DynResult<()> {
     )?;
 
     println!("Updated Open Image Denoise from {old_version} to {version}");
+    Ok(())
+}
+
+fn cargo_package_version(root: &Path) -> Option<String> {
+    let manifest = fs::read_to_string(root.join("Cargo.toml")).ok()?;
+    manifest_value(&manifest, "package", "version")
+}
+
+/// Sets `key = "value"` in a table of the root `Cargo.toml`, keeping the
+/// file's line endings, and fails if the table has no such key.
+fn set_manifest_value(root: &Path, table: &str, key: &str, value: &str) -> DynResult<()> {
+    let path = root.join("Cargo.toml");
+    let contents = fs::read_to_string(&path)?;
+    let mut in_table = false;
+    let mut found = false;
+    let mut output = String::with_capacity(contents.len());
+
+    for line in contents.split_inclusive('\n') {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_table = trimmed == format!("[{table}]");
+        } else if in_table
+            && !found
+            && let Some((name, _)) = trimmed.split_once('=')
+            && name.trim() == key
+        {
+            let ending = &line[line.trim_end().len()..];
+            output.push_str(&format!("{key} = \"{value}\"{ending}"));
+            found = true;
+            continue;
+        }
+        output.push_str(line);
+    }
+
+    if !found {
+        return Err(format!("`{key}` not found in [{table}] of {}", path.display()).into());
+    }
+    fs::write(&path, output)?;
     Ok(())
 }
 
@@ -350,7 +399,7 @@ fn header_candidates(root: &Path) -> Vec<PathBuf> {
     );
 
     candidates.extend(
-        package_version(root)
+        oidn_version(root)
             .into_iter()
             .flat_map(|version| oidn_package_dirs(root, &version))
             .flat_map(header_candidates_for_oidn_dir),
