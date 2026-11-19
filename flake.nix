@@ -12,8 +12,8 @@
     lib = nixpkgs.lib;
     systems = ["x86_64-linux" "aarch64-linux" "aarch64-darwin"];
     forAllSystems = f: lib.genAttrs systems (system: f system nixpkgs.legacyPackages.${system});
-    # The crate version is the Open Image Denoise version it wraps.
-    oidnVersion = (lib.importTOML ./Cargo.toml).package.version;
+    # The Open Image Denoise release the crate wraps.
+    oidnVersion = (lib.importTOML ./Cargo.toml).package.metadata.oidn.version;
   in {
     formatter = forAllSystems (_: pkgs: pkgs.alejandra);
 

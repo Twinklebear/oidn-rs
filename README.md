@@ -58,7 +58,7 @@ build script download the matching official Open Image Denoise binary package
 and link against it:
 
 ```toml
-oidn = { version = "2.5.2", features = ["bundled"] }
+oidn = { version = "2.5.1", features = ["bundled"] }
 ```
 
 The bundled feature supports the official OIDN packages for x86_64 Linux,
