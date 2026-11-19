@@ -26,7 +26,7 @@ jobs:
               run: |
                 latest=$(gh api repos/OpenImageDenoise/oidn/releases/latest --jq .tag_name)
                 latest=${latest#v}
-                current=$(sed -n '/^\[package\.metadata\.oidn\]/,/^\[/ s/^version = "\(.*\)"\r\?$/\1/p' Cargo.toml | head -n 1)
+                current=$(sed -n '/^\[package\.metadata\.oidn\]/,/^\[/ s/^version = "\([^"]*\)".*/\1/p' Cargo.toml | head -n 1)
                 echo "Latest release $latest, crate wraps $current"
 
                 newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n 1)
