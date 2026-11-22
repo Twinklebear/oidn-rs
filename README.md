@@ -4,10 +4,6 @@
 [![CI](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml/badge.svg)](https://github.com/Twinklebear/oidn-rs/actions/workflows/main.yml)
 
 Rust bindings to Intel’s [Open Image Denoise library](https://github.com/OpenImageDenoise/oidn).
-Crate version numbers track the OIDN version they correspond to. A fix to the
-crate itself between OIDN releases bumps the patch version, so a crate version
-can be ahead of the OIDN release it wraps; `[package.metadata.oidn]` in
-`Cargo.toml` names that release.
 
 ## Documentation
 
